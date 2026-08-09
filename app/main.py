@@ -373,7 +373,7 @@ def leagues():
 
 @app.get("/api/dashboard")
 def dashboard(
-    league: str = Query("EPL", regex="^(EPL|LALIGA|SERIEA)$"),
+    league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
 ):
     cfg = _cfg()
     try:
@@ -536,7 +536,7 @@ def _form(df: pd.DataFrame, teams: list, n=5) -> dict:
 
 @app.get("/api/teams")
 def teams(
-    league: str = Query("EPL", regex="^(EPL|LALIGA|SERIEA)$"),
+    league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
 ):
     cfg = _cfg()
     try:
@@ -606,7 +606,7 @@ def teams(
 def predict(
     home: str = Query(...),
     away: str = Query(...),
-    league: str = Query("EPL", regex="^(EPL|LALIGA|SERIEA)$"),
+    league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
 ):
     cfg = _cfg()
     try:
@@ -705,7 +705,7 @@ def predict(
 
 @app.get("/api/backtest")
 def backtest(
-    league: str = Query("EPL", regex="^(EPL|LALIGA|SERIEA)$"),
+    league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
     min_train_matches: int = Query(None, ge=100),
     step_matches: int = Query(None, ge=50),
 ):
@@ -718,7 +718,7 @@ def backtest(
 
 @app.get("/api/calibrate")
 def calibrate(
-    league: str = Query("EPL", regex="^(EPL|LALIGA|SERIEA)$"),
+    league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
 ):
     """Re-calibrate the Elo draw width on this league's actual data and return the
     suggested value (and confidence interval) without permanently mutating config."""
@@ -769,7 +769,7 @@ def calibrate(
 
 @app.get("/api/research")
 def research(
-    league: str = Query("EPL", regex="^(EPL|LALIGA|SERIEA)$"),
+    league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
     min_train_matches: int = Query(None, ge=100),
     step_matches: int = Query(None, ge=50),
 ):
