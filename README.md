@@ -76,8 +76,11 @@ range.
 Odds columns: recent football-data.co.uk files carry `B365H/D/A` and Pinnacle
 closing `PSH/PSD/PSA`, but **not** the BetBrain averages (`BbAv*`) or Pinnacle
 opening lines (`PH/PD/PA`). The market-residual layer therefore uses the B365
-closing line, and the opening→closing **line-movement features are inactive**
-until files with `PH/PD/PA` are used.
+closing line. The opening→closing **line-movement features cannot be activated
+from football-data.co.uk at all** — a full sweep of E0 files from 2005-06 to
+2025-26 found no season with `PH/PD/PA` (only closing `PSH/PSD/PSA`, from
+2012-13 onward). Enabling line movement requires a different source that
+publishes opening 1X2 odds (e.g. OddsPortal scrapes or an odds API).
 
 For upcoming *fixtures* (not historical results) and live odds, you'd want
 an API like API-Football or the football-data.org API — those need paid/free
@@ -155,6 +158,24 @@ beat the closing line out-of-sample — the residual stays positive — but it
 clearly beats the constant-prior baseline and the tuned staking config reports
 a better Sharpe than the shipped defaults.
 
+## Sanity-checking the negative result
+
+Before trusting "no edge," run the market-only control through the same
+pipeline — a trivial strategy with no model opinion at all:
+
+```
+python scripts/market_control.py --results backtest_results.csv
+python scripts/market_control.py --league EPL --xg-dir data/xg   # or run a backtest inline
+```
+
+On the current EPL set the control returns exactly what a working pipeline
+should: flat-betting the **market favorite loses ~-3.6%** (the ~5.5% margin,
+favorite-weighted), while the **model favorite loses ~-4.0%** and the model's
+value-bet Kelly loses ~-12.7%. Because the trivial control behaves as expected,
+the model's worse result is a genuine signal (its "value" calls are wrong, not
+a pipeline bug), and the residual against **Pinnacle close** is also positive
+(~+0.038) — the model fails the sharper-line test too.
+
 ## Files
 
 ```
@@ -172,6 +193,7 @@ predict.py         CLI: input two teams, get a prediction (--odds, --xg-dir)
 backtest.py        walk-forward evaluation harness (--xg-dir)
 scripts/scrape_understat.py   fetch match-level xG into data/xg/ (all leagues)
 scripts/calibrate_model.py    walk-forward hyperparameter tuning (ss_q, shrinkage, staking)
+scripts/market_control.py     sanity-check control: bet-the-market vs model strategies
 app/main.py        FastAPI backend for the web UI (surfaces every metric)
 webapp/static/     single-page frontend (index.html, app.js, styles.css)
 ```

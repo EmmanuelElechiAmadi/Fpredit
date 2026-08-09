@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +40,10 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("webapp")
 
 CACHE_TTL = 60 * 5  # 5 minutes for data-derived endpoint results
+_BT_CACHE_TTL = 60 * 30  # backtests are expensive; hold for 30 minutes
+
+# (league, min_train, step, invalidation_hash) -> (computed_at, {metrics, ...})
+_BT_CACHE: dict[tuple, tuple[float, dict]] = {}
 
 app = FastAPI(title="Football Predictor API", version="1.0.0")
 
@@ -148,6 +153,28 @@ def _load_xg_cached(league: str, xg_dir: str = "data/xg") -> pd.DataFrame | None
 def _xg_available(league: str) -> bool:
     xg = _load_xg_cached(league)
     return xg is not None and not xg.empty
+
+
+def _data_fingerprint(league: str) -> tuple[str, str, str]:
+    """mtime-based invalidation key: config + league raw data + league xG.
+
+    Re-running the expensive walk-forward backtest on every page load wastes
+    ~1-2 minutes of the experimentation loop, so repeat calls hit a short-TTL
+    cache that is invalidated whenever the config or the underlying data
+    changes (file mtimes).
+    """
+
+    def _mtime(p: Path) -> str:
+        try:
+            return str(p.stat().st_mtime)
+        except OSError:
+            return ""
+
+    return (
+        _mtime(Path("config.yaml")),
+        _mtime(Path("data/raw") / LEAGUE_CODES[league]),
+        _mtime(Path("data/xg") / league),
+    )
 
 
 @app.get("/api/health")
@@ -541,6 +568,14 @@ def backtest(
     min_train = min_train_matches or cfg.backtest.min_train_matches
     step = step_matches or cfg.backtest.step_matches
 
+    # Expensive computation — serve cached results within the TTL, invalidated
+    # whenever config or the underlying data changes.
+    cache_key = (league, min_train, step, _data_fingerprint(league))
+    now = time.time()
+    hit = _BT_CACHE.get(cache_key)
+    if hit and now - hit[0] < _BT_CACHE_TTL:
+        return hit[1]
+
     result_df = bt.walk_forward_backtest(
         df,
         min_train_matches=min_train,
@@ -570,11 +605,13 @@ def backtest(
         .to_dict()
     )
 
-    return {
+    payload = {
         "metrics": metrics,
         "n_matches": len(result_df),
         "monthly_accuracy": monthly_acc,
     }
+    _BT_CACHE[cache_key] = (now, payload)
+    return payload
 
 
 @app.get("/api/calibrate")

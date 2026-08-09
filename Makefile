@@ -1,4 +1,4 @@
-.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data scrape-xg scrape-xg-all calibrate-elo calibrate-model demo predict predict-xg backtest backtest-xg backtest-save report web
+.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data scrape-xg scrape-xg-all calibrate-elo calibrate-model calibrate-model-write market-control demo predict predict-xg backtest backtest-xg backtest-save report web
 
 # ── Installation ──────────────────────────────────────────────────────────────
 
@@ -65,6 +65,9 @@ calibrate-model:
 
 calibrate-model-write:
 	python3 scripts/calibrate_model.py --league EPL --xg-dir data/xg --grid quick --write-config
+
+market-control:
+	python3 scripts/market_control.py --league EPL --xg-dir data/xg
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 
