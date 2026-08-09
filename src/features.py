@@ -89,31 +89,29 @@ def head_to_head(df: pd.DataFrame, lookback_matches: int = 5) -> pd.Series:
     """Pre-match H2H points-per-game for the home team over the last N meetings, computed
     strictly from matches before the current row's date."""
     df = df.sort_values("date").reset_index(drop=True)
-    result = []
-    for i, row in df.iterrows():
-        past = df[
-            (df["date"] < row["date"])
-            & (
-                (
-                    (df["home_team"] == row["home_team"])
-                    & (df["away_team"] == row["away_team"])
-                )
-                | (
-                    (df["home_team"] == row["away_team"])
-                    & (df["away_team"] == row["home_team"])
-                )
+    # meetings[pair] = chronological list of
+    # (past_home_team, past_away_team, home_pts, away_pts)
+    # for prior meetings between those two teams (either orientation).
+    meetings: dict[tuple[str, str], list[tuple[str, str, float, float]]] = {}
+    result = [0.5] * len(df)
+    for i, (_, row) in enumerate(df.iterrows()):
+        pair = tuple(sorted([row["home_team"], row["away_team"]]))
+        hist = meetings.get(pair)
+        if hist:
+            recent = hist[-lookback_matches:]
+            pts = [
+                (home_pts if past_home == row["home_team"] else away_pts)
+                for past_home, _, home_pts, away_pts in recent
+            ]
+            result[i] = float(np.mean(pts)) / 3.0
+        # Record this match so it only influences strictly later rows.
+        # (Skip NaN-goal pseudo rows used for upcoming-match predictions —
+        # they must never count as a past meeting, same as before.)
+        hg, ag = row["home_goals"], row["away_goals"]
+        if not (pd.isna(hg) or pd.isna(ag)):
+            home_pts = 3.0 if hg > ag else 1.0 if hg == ag else 0.0
+            away_pts = 0.0 if hg > ag else 1.0 if hg == ag else 3.0
+            meetings.setdefault(pair, []).append(
+                (row["home_team"], row["away_team"], home_pts, away_pts)
             )
-        ]
-        past = past.tail(lookback_matches)
-        if past.empty:
-            result.append(0.5)  # neutral prior
-            continue
-        pts = []
-        for _, p in past.iterrows():
-            if p["home_team"] == row["home_team"]:
-                gf, ga = p["home_goals"], p["away_goals"]
-            else:
-                gf, ga = p["away_goals"], p["home_goals"]
-            pts.append(3 if gf > ga else 1 if gf == ga else 0)
-        result.append(float(np.mean(pts)) / 3.0)
     return pd.Series(result, index=df.index, name="h2h_home_ppg_norm")

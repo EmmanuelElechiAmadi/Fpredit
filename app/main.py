@@ -125,14 +125,17 @@ def health():
 def leagues():
     cfg = _cfg()
     out = []
-    for code, meta in LEAGUE_CODES.items():
-        folder = Path(cfg.data.data_dir) / meta
+    for code, folder_code in LEAGUE_CODES.items():
+        folder = Path(cfg.data.data_dir) / folder_code
         files = sorted(folder.glob("*.csv"))
         seasons = [f.stem for f in files]
+        meta = _league_meta(code)
         out.append(
             {
                 "code": code,
-                **meta,
+                "folder": folder_code,
+                "label": meta["label"],
+                "country": meta["country"],
                 "seasons": seasons,
                 "n_seasons": len(seasons),
             }
