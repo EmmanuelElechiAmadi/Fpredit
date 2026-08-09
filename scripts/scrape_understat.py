@@ -16,6 +16,11 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import sys
+from pathlib import Path
+
+# Make `src` importable when running directly: `python scripts/scrape_understat.py`
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.xg_loader import _season_strs, fetch_league_xg
 
@@ -48,11 +53,14 @@ def main():
     args = ap.parse_args()
 
     current_year = datetime.datetime.now().year
+    # Most recent *complete* season starts in the previous calendar year.
+    last_complete = current_year - 1
     if args.from_year is not None:
-        end = args.to_year if args.to_year is not None else current_year
+        end = args.to_year if args.to_year is not None else last_complete
         seasons = _season_strs(args.from_year, end)
     else:
-        seasons = _season_strs(current_year - args.seasons + 1, current_year)
+        end = last_complete
+        seasons = _season_strs(end - args.seasons + 1, end)
 
     print(f"Seasons to scrape for {args.league}: {seasons[0]} .. {seasons[-1]}")
     df = fetch_league_xg(

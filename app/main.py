@@ -14,9 +14,12 @@ Serves a modern single-page UI on top of the existing prediction pipeline:
 Run:  uvicorn app.main:app --reload
 """
 
+from __future__ import annotations
+
 import functools
 import logging
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -30,6 +33,7 @@ from src.data_loader import LEAGUE_CODES, load_league_csvs
 from src.elo import EloEngine
 from src.market import add_implied_probabilities
 from src.model_factory import build_ensemble
+from src.xg_loader import join_xg, load_league_xg
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("webapp")
@@ -78,6 +82,8 @@ def _normalize_metrics(metrics: dict) -> dict:
       metrics.market.model_minus_market_log_loss — model − market (negative = better)
       metrics.market.value_bets                  — number of flagged value bets
       metrics.market.value_bet_yield             — ROI per bet (profit units / n bets)
+      metrics.edge_corr                          — does predicted edge predict winning?
+      metrics.staking                            — covariance-adjusted Kelly report
     """
     out = {
         "log_loss": metrics["log_loss"],
@@ -90,6 +96,7 @@ def _normalize_metrics(metrics: dict) -> dict:
     out["market"] = {
         "market_log_loss": mkt.get("log_loss_market"),
         "model_log_loss": mkt.get("log_loss_model"),
+        "residual_log_loss": mkt.get("residual_log_loss"),
         "brier_model": mkt.get("brier_model"),
         "brier_market": mkt.get("brier_market"),
         "n": mkt.get("n", 0),
@@ -106,6 +113,19 @@ def _normalize_metrics(metrics: dict) -> dict:
         )
     else:
         out["market"]["model_minus_market_log_loss"] = None
+
+    # Edge correlation + the covariance-adjusted Kelly staking report
+    out["edge_corr"] = metrics.get("edge_corr")
+    st = metrics.get("staking") or {}
+    out["staking"] = {
+        "n": st.get("n", 0),
+        "total_staked": st.get("total_staked", 0.0),
+        "profit_units": st.get("profit_units", 0.0),
+        "roi": st.get("roi"),
+        "sharpe": st.get("sharpe"),
+        "max_drawdown": st.get("max_drawdown", 0.0),
+        "cvar95": st.get("cvar95"),
+    }
     return out
 
 
@@ -114,6 +134,20 @@ def _load_cached(league: str, raw_dir: str) -> pd.DataFrame:
     df = load_league_csvs(raw_dir, league)
     df = add_implied_probabilities(df)
     return df
+
+
+@functools.lru_cache(maxsize=16)
+def _load_xg_cached(league: str, xg_dir: str = "data/xg") -> pd.DataFrame | None:
+    """Load cached Understat xG for a league, or None when absent (offline-safe)."""
+    try:
+        return load_league_xg(xg_dir, league)
+    except FileNotFoundError:
+        return None
+
+
+def _xg_available(league: str) -> bool:
+    xg = _load_xg_cached(league)
+    return xg is not None and not xg.empty
 
 
 @app.get("/api/health")
@@ -138,6 +172,12 @@ def leagues():
                 "country": meta["country"],
                 "seasons": seasons,
                 "n_seasons": len(seasons),
+                "xg_available": _xg_available(code),
+                "xg_seasons": (
+                    len(list((Path("data/xg") / code).glob("*.csv")))
+                    if (Path("data/xg") / code).exists()
+                    else 0
+                ),
             }
         )
     return out
@@ -177,11 +217,19 @@ def dashboard(
     # ---- Goals over time ----
     monthly = (
         df.groupby(df["date"].dt.to_period("M"))
-        .agg(total_goals=("home_goals", lambda s: s.sum() + df.loc[s.index, "away_goals"].sum()), matches=("home_goals", "size"))
+        .agg(
+            total_goals=(
+                "home_goals",
+                lambda s: s.sum() + df.loc[s.index, "away_goals"].sum(),
+            ),
+            matches=("home_goals", "size"),
+        )
         .reset_index()
     )
     monthly["month"] = monthly["date"].astype(str)
-    goals_per_game = (monthly["total_goals"] / monthly["matches"].clip(lower=1)).round(2).tolist()
+    goals_per_game = (
+        (monthly["total_goals"] / monthly["matches"].clip(lower=1)).round(2).tolist()
+    )
 
     # ---- Home advantage ----
     home_win_pct = float((df["result"] == "H").mean())
@@ -216,19 +264,28 @@ def dashboard(
             "home_goals_per_match": round(avg_goals_home, 2),
             "away_goals_per_match": round(avg_goals_away, 2),
         },
+        "xg_available": _xg_available(league),
     }
 
 
 def _standings(season_df: pd.DataFrame) -> list:
     """Compute a simple league table (points, GD) from a season's matches."""
-    teams = {}
+    teams: dict[str, dict[str, Any]] = {}
     for _, r in season_df.iterrows():
         for side in ("home", "away"):
             t = r[f"{side}_team"]
             g = teams.setdefault(
                 t,
-                {"team": t, "played": 0, "won": 0, "draw": 0, "lost": 0,
-                 "gf": 0, "ga": 0, "points": 0},
+                {
+                    "team": t,
+                    "played": 0,
+                    "won": 0,
+                    "draw": 0,
+                    "lost": 0,
+                    "gf": 0,
+                    "ga": 0,
+                    "points": 0,
+                },
             )
             g["played"] += 1
             g["gf"] += r[f"{side}_goals"]
@@ -237,7 +294,6 @@ def _standings(season_df: pd.DataFrame) -> list:
         # points from the match
         h = teams[r["home_team"]]
         a = teams[r["away_team"]]
-        h_goal_diff = r["home_goals"] - r["away_goals"]
         if r["result"] == "H":
             h["won"] += 1
             a["lost"] += 1
@@ -300,6 +356,10 @@ def teams(
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    xg_df = _load_xg_cached(league)
+    if xg_df is not None and not xg_df.empty:
+        df = join_xg(df, xg_df)
+
     model = build_ensemble(cfg)
     model.fit(df.sort_values("date"))
 
@@ -315,6 +375,17 @@ def teams(
     attack = {t: round(float(v), 3) for t, v in dc.attack.items()}
     defense = {t: round(float(v), 3) for t, v in dc.defense.items()}
 
+    # Dynamic state-space ratings (Kalman-filtered attack/defense). The state
+    # vector is [alpha_0..alpha_{n-1}, delta_0..delta_{n-1}].
+    dyn_attack: dict[str, float] = {}
+    dyn_defense: dict[str, float] = {}
+    dyn = model.dyn
+    if dyn.x is not None and dyn.n:
+        n = dyn.n
+        for i, t in enumerate(dyn.teams):
+            dyn_attack[t] = round(float(dyn.x[i]), 3)
+            dyn_defense[t] = round(float(dyn.x[n + i]), 3)
+
     # Form
     all_teams = sorted(set(df["home_team"].unique()) | set(df["away_team"].unique()))
     form = _form(df, all_teams)
@@ -325,8 +396,11 @@ def teams(
     season_df = df[df["date"] >= first_season_date]
     standings = _standings(season_df)
 
+    xg_available = _xg_available(league)
+
     return {
         "league": league,
+        "xg_available": xg_available,
         "teams": [
             {
                 "team": t,
@@ -335,6 +409,8 @@ def teams(
                 ),
                 "attack": attack.get(t),
                 "defense": defense.get(t),
+                "dyn_attack": dyn_attack.get(t),
+                "dyn_defense": dyn_defense.get(t),
                 "form": form.get(t, ""),
             }
             for t in sorted(all_teams)
@@ -355,6 +431,11 @@ def predict(
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    # Attach cached Understat xG when present so the dynamic/xG components show.
+    xg_df = _load_xg_cached(league)
+    if xg_df is not None and not xg_df.empty:
+        df = join_xg(df, xg_df)
+
     model = build_ensemble(cfg)
     model.fit(df.sort_values("date"))
     try:
@@ -362,7 +443,7 @@ def predict(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Market odds for this fixture if available
+    # Market odds for this fixture if available (last meeting's closing line)
     market = None
     odds_row = df[
         (df["home_team"] == home)
@@ -370,11 +451,29 @@ def predict(
         & df["implied_home"].notna()
     ].tail(1)
     if not odds_row.empty:
+        odds_row = odds_row.iloc[0]
+        implied = [
+            float(odds_row["implied_home"]),
+            float(odds_row["implied_draw"]),
+            float(odds_row["implied_away"]),
+        ]
+        model_probs = [p["home_win"], p["draw"], p["away_win"]]
         market = {
-            "implied_home": round(float(odds_row.iloc[0]["implied_home"]), 4),
-            "implied_draw": round(float(odds_row.iloc[0]["implied_draw"]), 4),
-            "implied_away": round(float(odds_row.iloc[0]["implied_away"]), 4),
+            "implied_home": round(implied[0], 4),
+            "implied_draw": round(implied[1], 4),
+            "implied_away": round(implied[2], 4),
+            "edge_home": round(model_probs[0] - implied[0], 4),
+            "edge_draw": round(model_probs[1] - implied[1], 4),
+            "edge_away": round(model_probs[2] - implied[2], 4),
+            "source": "Last meeting (closing odds)",
         }
+
+    # Dynamic expected goals from the Kalman-filtered state-space model
+    dyn_expected = None
+    try:
+        dyn_expected = model.dyn.expected_goals(home, away)
+    except (ValueError, AttributeError):
+        pass
 
     # Score probability matrix for a chart
     mat = model.dc.score_matrix(home, away, max_goals=6)
@@ -384,6 +483,7 @@ def predict(
         "probs": mat[:7, :7].round(4).tolist(),
     }
 
+    comps = p["component_probs"]
     return {
         "home": home,
         "away": away,
@@ -399,12 +499,23 @@ def predict(
             "home": round(float(p["expected_goals"][0]), 2),
             "away": round(float(p["expected_goals"][1]), 2),
         },
+        "dyn_expected_goals": (
+            {
+                "home": round(float(dyn_expected[0]), 2),
+                "away": round(float(dyn_expected[1]), 2),
+            }
+            if dyn_expected
+            else None
+        ),
         "over_2_5_goals": round(float(p["over_2_5_goals"]), 4),
         "btts_yes": round(float(p["btts_yes"]), 4),
         "component_probs": {
-            "dixon_coles": [round(x, 4) for x in p["component_probs"]["dixon_coles"]],
-            "elo": [round(x, 4) for x in p["component_probs"]["elo"]],
+            "dixon_coles": [round(x, 4) for x in comps["dixon_coles"]],
+            "elo": [round(x, 4) for x in comps["elo"]],
+            "dynamic": [round(x, 4) for x in comps["dynamic"]],
+            **({"xg": [round(x, 4) for x in comps["xg"]]} if "xg" in comps else {}),
         },
+        "xg_enabled": "xg" in comps,
         "market": market,
         "score_matrix": score_grid,
     }
@@ -425,11 +536,17 @@ def backtest(
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+    xg_df = _load_xg_cached(league)
+
     min_train = min_train_matches or cfg.backtest.min_train_matches
     step = step_matches or cfg.backtest.step_matches
 
     result_df = bt.walk_forward_backtest(
-        df, min_train_matches=min_train, step_matches=step, cfg=cfg
+        df,
+        min_train_matches=min_train,
+        step_matches=step,
+        cfg=cfg,
+        xg_df=xg_df,
     )
     if result_df.empty:
         raise HTTPException(status_code=422, detail="Backtest produced no predictions.")
@@ -441,12 +558,23 @@ def backtest(
     result_df["month"] = result_df["date"].dt.to_period("M").astype(str)
     monthly_acc = (
         result_df.groupby("month")
-        .apply(lambda g: float((g["pred_home_win"].gt(g["pred_draw"]) & g["pred_home_win"].gt(g["pred_away_win"])).mean()))
+        .apply(
+            lambda g: float(
+                (
+                    g["pred_home_win"].gt(g["pred_draw"])
+                    & g["pred_home_win"].gt(g["pred_away_win"])
+                ).mean()
+            )
+        )
         .round(4)
         .to_dict()
     )
 
-    return {"metrics": metrics, "n_matches": len(result_df), "monthly_accuracy": monthly_acc}
+    return {
+        "metrics": metrics,
+        "n_matches": len(result_df),
+        "monthly_accuracy": monthly_acc,
+    }
 
 
 @app.get("/api/calibrate")
@@ -470,14 +598,16 @@ def calibrate(
         home_advantage=cfg.model.elo_home_advantage,
         draw_width=cfg.model.elo_draw_width,
     )
-    gaps = []
+    gaps_list: list[float] = []
     for _, r in df.iterrows():
         rh = elo.get(r["home_team"]) + elo.home_advantage
         ra = elo.get(r["away_team"])
-        gaps.append(round(rh - ra, 1))
-        elo.update(r["date"], r["home_team"], r["away_team"], r["home_goals"], r["away_goals"])
+        gaps_list.append(round(rh - ra, 1))
+        elo.update(
+            r["date"], r["home_team"], r["away_team"], r["home_goals"], r["away_goals"]
+        )
 
-    gaps = np.array(gaps)
+    gaps = np.array(gaps_list)
 
     # Simple search over draw_width to minimize Brier on the draw outcome
     best_width, best_brier = None, np.inf
@@ -509,22 +639,28 @@ def compare():
     for league in LEAGUE_CODES:
         try:
             df = _load_cached(league, cfg.data.data_dir)
+            xg_df = _load_xg_cached(league)
             result_df = bt.walk_forward_backtest(
                 df,
                 min_train_matches=cfg.backtest.min_train_matches,
                 step_matches=cfg.backtest.step_matches,
                 cfg=cfg,
+                xg_df=xg_df,
             )
             if result_df.empty:
                 continue
             metrics = _normalize_metrics(bt.evaluate(result_df, with_odds=True))
+            mkt = metrics.get("market") or {}
             out[league] = {
                 "log_loss": metrics["log_loss"],
                 "brier": metrics["brier"],
                 "accuracy": metrics["accuracy"],
                 "baseline_log_loss": metrics["baseline_log_loss"],
-                "market": metrics.get("market"),
-                "value_bets": metrics.get("market", {}).get("value_bets", 0),
+                "market": mkt,
+                "value_bets": mkt.get("value_bets", 0),
+                "edge_corr": metrics.get("edge_corr"),
+                "staking": metrics.get("staking"),
+                "xg_available": _xg_available(league),
             }
         except Exception as e:
             log.warning("compare: %s failed: %s", league, e)

@@ -268,11 +268,11 @@ async function loadTeams() {
     });
 
     $("#strengthTable").innerHTML =
-      `<thead><tr><th>Team</th><th>Elo</th><th>Attack</th><th>Defense</th><th>Form</th></tr></thead><tbody>` +
+      `<thead><tr><th>Team</th><th>Elo</th><th>DC Attack</th><th>DC Defense</th><th>Dyn Attack</th><th>Dyn Defense</th><th>Form</th></tr></thead><tbody>` +
       teams
         .map(
           (t) =>
-            `<tr><td class="team-cell">${t.team}</td><td>${fmtNum(t.elo_rating, 0)}</td><td>${fmtNum(t.attack, 3)}</td><td>${fmtNum(t.defense, 3)}</td><td><span class="form-dots small">${(t.form || "")
+            `<tr><td class="team-cell">${t.team}</td><td>${fmtNum(t.elo_rating, 0)}</td><td>${fmtNum(t.attack, 3)}</td><td>${fmtNum(t.defense, 3)}</td><td>${fmtNum(t.dyn_attack, 3)}</td><td>${fmtNum(t.dyn_defense, 3)}</td><td><span class="form-dots small">${(t.form || "")
               .split("")
               .map((c) => `<i class="fd ${c}">${c}</i>`)
               .join("")}</span></td></tr>`
@@ -351,6 +351,7 @@ function renderPrediction(d) {
     { k: "Over 2.5 goals", v: fmtPct(d.over_2_5_goals) },
     { k: "BTTS Yes", v: fmtPct(d.btts_yes) },
     { k: "Model pick", v: d.predicted_result },
+    { k: "Dynamic xG", v: fmtNum(d.dyn_expected_goals ? d.dyn_expected_goals.home : d.expected_goals.home) + "–" + fmtNum(d.dyn_expected_goals ? d.dyn_expected_goals.away : d.expected_goals.away) },
   ]
     .map((s) => `<div class="mini-stat"><span>${s.k}</span><b>${s.v}</b></div>`)
     .join("");
@@ -416,6 +417,73 @@ function renderPrediction(d) {
       },
     },
   });
+
+  renderComponents(d);
+  renderMarketCompare(d);
+}
+
+/* Component breakdown: each model family's H/D/A probabilities. */
+function renderComponents(d) {
+  const comps = d.component_probs || {};
+  const names = {
+    dixon_coles: "Dixon-Coles",
+    dynamic: "Dynamic (Kalman)",
+    elo: "Elo",
+    xg: "xG Filter",
+  };
+  const order = ["dixon_coles", "dynamic", "elo", "xg"];
+  const rows = order
+    .filter((k) => comps[k])
+    .map((k) => {
+      const [h, dd, a] = comps[k];
+      const max = Math.max(h, dd, a, 0.0001);
+      return `<div class="comp-row">
+        <span class="comp-name">${names[k] || k}</span>
+        <div class="comp-track">
+          <div class="comp-fill h" style="flex:${(h / max).toFixed(3)}"></div>
+          <div class="comp-fill d" style="flex:${(dd / max).toFixed(3)}"></div>
+          <div class="comp-fill a" style="flex:${(a / max).toFixed(3)}"></div>
+        </div>
+        <div class="comp-vals">
+          <span class="c-h">${fmtPct(h)}</span><span class="c-d">${fmtPct(dd)}</span><span class="c-a">${fmtPct(a)}</span>
+        </div>
+      </div>`;
+    })
+    .join("");
+  $("#componentBars").innerHTML =
+    rows ||
+    `<p class="muted">No component breakdown available.</p>`;
+}
+
+/* Market vs model: bar comparison of implied vs model probabilities. */
+function renderMarketCompare(d) {
+  const el = $("#marketCompareBox");
+  if (!d.market) {
+    el.innerHTML =
+      `<p class="muted">No closing line recorded for this fixture. Pass odds to the API to enable the residual-vs-market layer.</p>`;
+    return;
+  }
+  const mk = d.market;
+  const labels = [`${d.home}`, "Draw", `${d.away}`];
+  const rows = labels
+    .map((label, i) => {
+      const implied = [mk.implied_home, mk.implied_draw, mk.implied_away][i];
+      const model = [d.probabilities.home_win, d.probabilities.draw, d.probabilities.away_win][i];
+      const edge = [mk.edge_home, mk.edge_draw, mk.edge_away][i];
+      const cls = edge > 0.01 ? "pos" : edge < -0.01 ? "neg" : "flat";
+      return `<div class="mm-row">
+        <span class="mm-label">${label}</span>
+        <span class="mm-bar-wrap"><span class="mm-bar model" style="width:${Math.round(model * 100)}%"></span></span>
+        <span class="mm-val model">${fmtPct(model)}</span>
+        <span class="mm-bar-wrap"><span class="mm-bar market" style="width:${Math.round(implied * 100)}%"></span></span>
+        <span class="mm-val market">${fmtPct(implied)}</span>
+        <span class="mm-edge ${cls}">${edge >= 0 ? "+" : ""}${(edge * 100).toFixed(1)}pt</span>
+      </div>`;
+    })
+    .join("");
+  el.innerHTML =
+    `<div class="mm-head"><span></span><b>Model</b><b>Market</b><b>Edge</b></div>` + rows +
+    `<p class="muted small">Market line from last meeting's closing odds. Positive edge = model sees value the market hasn't priced.</p>`;
 }
 
 /* ---------- Backtest Lab ---------- */
@@ -426,16 +494,25 @@ async function loadBacktest() {
     const m = d.metrics;
 
     const acc = typeof m.accuracy === "number" && m.accuracy <= 1 ? m.accuracy : m.accuracy / 100;
+    const mk = m.market || {};
+    const st = m.staking || {};
+    const resid = mk.residual_log_loss;
 
-    $("#btStats").innerHTML = [
+    const statCards = [
       { label: "Matches", value: d.n_matches.toLocaleString(), icon: "📅" },
       { label: "Accuracy", value: fmtPct(acc), icon: "🎯" },
       { label: "Log Loss", value: fmtNum(m.log_loss, 4), icon: "📉" },
       { label: "Brier", value: fmtNum(m.brier, 4), icon: "📊" },
-    ]
+      { label: "Residual log loss", value: resid == null ? "—" : (resid >= 0 ? "+" : "") + resid.toFixed(4), icon: "🎰", tone: resid != null && resid < 0 ? "good" : resid != null && resid > 0 ? "bad" : "" },
+      { label: "Edge correlation", value: m.edge_corr == null ? "—" : (m.edge_corr >= 0 ? "+" : "") + m.edge_corr.toFixed(3), icon: "📈", tone: m.edge_corr != null && m.edge_corr > 0 ? "good" : "bad" },
+      { label: "Kelly Sharpe", value: st.sharpe == null ? "—" : fmtNum(st.sharpe, 2), icon: "⚖️" },
+      { label: "Staking ROI", value: st.roi == null ? "—" : fmtPct(st.roi), icon: "💰" },
+    ];
+
+    $("#btStats").innerHTML = statCards
       .map(
         (s) =>
-          `<div class="stat-card"><div class="stat-icon">${s.icon}</div><div class="stat-value">${s.value}</div><div class="stat-label">${s.label}</div></div>`
+          `<div class="stat-card ${s.tone || ""}"><div class="stat-icon">${s.icon}</div><div class="stat-value">${s.value}</div><div class="stat-label">${s.label}</div></div>`
       )
       .join("");
 
@@ -492,6 +569,55 @@ async function loadBacktest() {
         },
       },
     });
+
+    makeChart("btMarketChart", {
+      type: "bar",
+      data: {
+        labels: ["Model", "Market", "Baseline"],
+        datasets: [
+          {
+            label: "Log loss (lower = better)",
+            data: [
+              mk.model_log_loss != null ? mk.model_log_loss : null,
+              mk.market_log_loss != null ? mk.market_log_loss : null,
+              m.baseline_log_loss,
+            ],
+            backgroundColor: [PALETTE.blue, PALETTE.amber, "rgba(148,163,184,0.6)"],
+            borderRadius: 6,
+          },
+        ],
+      },
+      options: {
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (c) => c.parsed.y != null ? fmtNum(c.parsed.y, 4) : "—" } },
+        },
+        scales: {
+          y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.08)" } },
+          x: { ticks: { color: "#cbd5e1" }, grid: { display: false } },
+        },
+      },
+    });
+
+    const stCards = [
+      { k: "Bets staked", v: fmtNum(st.n, 0) },
+      { k: "Total staked (bankroll units)", v: fmtNum(st.total_staked, 2) },
+      { k: "Profit (units)", v: st.profit_units == null ? "—" : (st.profit_units >= 0 ? "+" : "") + st.profit_units.toFixed(3) },
+      { k: "ROI", v: fmtPct(st.roi) },
+      { k: "Sharpe (annualized)", v: fmtNum(st.sharpe, 2) },
+      { k: "Max drawdown", v: fmtNum(st.max_drawdown, 3) },
+      { k: "CVaR 95%", v: fmtNum(st.cvar95, 3) },
+    ];
+    $("#stakingPanel").innerHTML =
+      `<div class="market-grid">` +
+      stCards
+        .map(
+          (s) =>
+            `<div><span class="muted">${s.k}</span><b>${s.v}</b></div>`
+        )
+        .join("") +
+      `</div>` +
+      `<p class="muted small">Covariance-adjusted fractional Kelly portfolio sizing. Negative profit/Sharpe means the value edge has not paid out in this window — the honest result.</p>`;
 
     $("#marketPanel").innerHTML = m.market
       ? `<div class="market-grid">
@@ -581,16 +707,29 @@ async function loadCompare() {
       },
     });
 
-    $("#valueBetPanel").innerHTML = `<div class="market-grid">
-      ${leagues
-        .map(
-          (l) =>
-            `<div class="value-card"><h5>${LEAGUE_LABELS[l] || l}</h5>
-             <span class="muted">Value bets:</span> <b>${d[l].value_bets || 0}</b><br/>
-             <span class="muted">Market log loss:</span> <b>${d[l].market ? fmtNum(d[l].market.market_log_loss, 4) : "—"}</b></div>`
-        )
-        .join("")}
-    </div>`;
+    const vbRows = leagues
+      .map((l) => {
+        const mk = d[l].market || {};
+        const st = d[l].staking || {};
+        const resid = mk.residual_log_loss;
+        return `<tr>
+          <td class="team-cell">${LEAGUE_LABELS[l] || l}${d[l].xg_available ? ' <span class="badge xg small-badge">xG</span>' : ""}</td>
+          <td>${fmtNum(mk.n || 0, 0)}</td>
+          <td>${d[l].value_bets || 0}</td>
+          <td>${resid == null ? "—" : (resid >= 0 ? "+" : "") + resid.toFixed(4)}</td>
+          <td>${d[l].edge_corr == null ? "—" : (d[l].edge_corr >= 0 ? "+" : "") + d[l].edge_corr.toFixed(3)}</td>
+          <td>${st.roi == null ? "—" : fmtPct(st.roi)}</td>
+          <td>${st.sharpe == null ? "—" : fmtNum(st.sharpe, 2)}</td>
+          <td>${st.max_drawdown == null ? "—" : fmtNum(st.max_drawdown, 3)}</td>
+        </tr>`;
+      })
+      .join("");
+    $("#valueBetPanel").innerHTML =
+      `<table class="table"><thead><tr>
+         <th>League</th><th>Market matches</th><th>Value bets</th><th>Residual log loss</th>
+         <th>Edge corr</th><th>Kelly ROI</th><th>Sharpe</th><th>Max DD</th>
+       </tr></thead><tbody>` + vbRows + `</tbody></table>`
+      + `<p class="muted small">Residual log loss = model − market (negative means the model adds information beyond the closing line). Edge corr = does predicted value edge predict winning?</p>`;
   });
 }
 

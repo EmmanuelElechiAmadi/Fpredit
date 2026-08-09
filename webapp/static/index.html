@@ -119,6 +119,16 @@
               <div id="marketBox" class="market-box"></div>
             </div>
           </div>
+          <div class="grid-2">
+            <div class="card inner">
+              <h4>Component Breakdown <span class="card-sub">model signals</span></h4>
+              <div id="componentBars"></div>
+            </div>
+            <div class="card inner">
+              <h4>Market vs Model <span class="card-sub">last meeting closing line</span></h4>
+              <div id="marketCompareBox" class="market-compare"></div>
+            </div>
+          </div>
           <div class="card inner">
             <h4>Score Probability Matrix</h4>
             <canvas id="matrixChart" height="300"></canvas>
@@ -135,8 +145,18 @@
           <canvas id="btCompareChart" height="260"></canvas>
         </div>
         <div class="card">
+          <h3>Model vs Market Log Loss</h3>
+          <canvas id="btMarketChart" height="260"></canvas>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
           <h3>Monthly Accuracy</h3>
           <canvas id="btMonthlyChart" height="260"></canvas>
+        </div>
+        <div class="card">
+          <h3>Staking Report <span class="card-sub">covariance-adjusted fractional Kelly</span></h3>
+          <div id="stakingPanel" class="staking-panel"></div>
         </div>
       </div>
       <div class="card">

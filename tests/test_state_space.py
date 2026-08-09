@@ -62,10 +62,14 @@ class TestFiltering:
         assert (probs >= 0).all() and (probs <= 1).all()
 
     def test_handles_unknown_team_gracefully(self, matches):
+        """Unknown teams (newly promoted, no history) get a league-mean prior
+        prediction instead of raising."""
         model = StateSpaceModel(q=0.01)
         model.filter_matches(matches)
-        with pytest.raises(ValueError):
-            model.expected_goals("Team A", "Team NOT REAL")
+        lam, mu = model.expected_goals("Team A", "Team NOT REAL")
+        assert lam > 0 and mu > 0
+        probs = model.match_probabilities("Team NOT REAL", "Team A")
+        assert 0 <= probs["home_win"] <= 1
 
     def test_empty_matches_raises(self):
         with pytest.raises(ValueError):

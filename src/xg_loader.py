@@ -41,7 +41,11 @@ FIRST_XG_SEASON = 2014
 
 
 def _season_strs(start: int = FIRST_XG_SEASON, end: Optional[int] = None) -> list[str]:
-    end = end or datetime.now().year
+    # The most recent season whose start year we should request is one year
+    # before the current calendar year: e.g. on 2026-08-09 the last *complete*
+    # season starts in 2025 ("2025-26"). Requesting the current-year season
+    # ("2026-27") would hit an in-progress year Understat has no data for.
+    end = end or (datetime.now().year - 1)
     return [f"{y}-{str(y + 1)[2:]}" for y in range(start, end + 1)]
 
 
@@ -54,18 +58,32 @@ TEAM_NAME_MAP = {
     "Man United": "Manchester United",
     "Newcastle": "Newcastle United",
     "Nott'm Forest": "Nottingham Forest",
-    "Spurs": "Tottenham",
+    # football-data.co.uk has used "Tottenham" in recent seasons and "Spurs"
+    # historically; Understat always uses "Tottenham", so we keep it as-is.
+    "Tottenham": "Tottenham",
     "West Brom": "West Bromwich Albion",
     "Wolves": "Wolverhampton Wanderers",
     "QPR": "Queens Park Rangers",
     "Hull": "Hull City",
     "Cardiff": "Cardiff City",
     "Ipswich": "Ipswich Town",
-    # La Liga
+    "Norwich": "Norwich City",
+    # La Liga (football-data.co.uk short names -> Understat full names)
     "Alaves": "Alaves",
+    "Ath Bilbao": "Athletic Club",
+    "Ath Madrid": "Atletico Madrid",
+    "Betis": "Real Betis",
+    "Celta": "Celta Vigo",
     "Deportivo": "Deportivo La Coruna",
+    "Espanol": "Espanyol",
+    "Oviedo": "Real Oviedo",
+    "Sociedad": "Real Sociedad",
     "Sporting Gijon": "Sporting Gijon",
+    "Valladolid": "Real Valladolid",
+    "Vallecano": "Rayo Vallecano",
     # Serie A
+    "Milan": "AC Milan",
+    "Parma": "Parma Calcio 1913",
     "Verona": "Hellas Verona",
 }
 _NAME_MAP_REVERSE = {v: k for k, v in TEAM_NAME_MAP.items()}
@@ -160,6 +178,11 @@ def _scrape_season(league: str, season: str, timeout: int = 30) -> pd.DataFrame:
                 "away_xg": float(m["xG"]["a"]),
             }
         )
+    if not rows:
+        raise ValueError(
+            f"Understat returned no matches for {league} {season} — the season "
+            f"may not have started or the page may have changed."
+        )
     df = pd.DataFrame(rows)
     df["result"] = np.where(
         df["home_goals"] > df["away_goals"],
@@ -223,13 +246,47 @@ def join_xg(df: pd.DataFrame, xg_df: pd.DataFrame) -> pd.DataFrame:
 
     The merge is on (date, home_team, away_team); rows with no xG match keep
     NaN xG (the ensemble then falls back to goals-only features for them).
+
+    Understat timestamps are UTC while football-data.co.uk dates are the local
+    kickoff day, so a small minority of matches are off by one calendar day
+    (a late-evening kickoff that lands just after midnight UTC). A first pass
+    joins on the exact date; a second pass joins any remaining rows on the
+    (home_team, away_team) pair with |date offset| <= 2 days so those fixtures
+    still get their xG.
     """
     if xg_df is None or xg_df.empty:
+        return df
+    if "home_xg" in df.columns and "away_xg" in df.columns:
+        # Already joined (e.g. the caller pre-joined and the backtest re-runs
+        # join_xg); re-merging would collide column names, so just pass through.
         return df
     key = ["date", "home_team", "away_team"]
     cols = key + ["home_xg", "away_xg"]
     sub = xg_df[cols].drop_duplicates(subset=key, keep="first")
     out = df.merge(sub, on=key, how="left")
+
+    # Pass 2: fuzzy date join for fixtures whose Understat date differs from the
+    # results date — a late-evening kickoff that lands just after midnight UTC,
+    # or a postponed match rescheduled by days/weeks. League pairs never play
+    # twice within 14 days (a home-and-away pair is ~6 months apart), so the
+    # window stays small enough to never attach a different season's fixture.
+    missing = out[out["home_xg"].isna()].copy()
+    if missing.empty:
+        return out
+    for i, row in missing.iterrows():
+        cand = sub[
+            (sub["home_team"] == row["home_team"])
+            & (sub["away_team"] == row["away_team"])
+        ].copy()
+        if cand.empty:
+            continue
+        cand["_offset"] = (cand["date"] - row["date"]).abs().dt.days
+        cand = cand[cand["_offset"] <= 14].sort_values("_offset")
+        if cand.empty:
+            continue
+        best = cand.iloc[0]
+        out.loc[i, "home_xg"] = best["home_xg"]
+        out.loc[i, "away_xg"] = best["away_xg"]
     return out
 
 

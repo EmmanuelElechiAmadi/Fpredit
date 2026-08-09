@@ -195,13 +195,18 @@ class StateSpaceModel:
     def expected_goals(self, home: str, away: str) -> tuple[float, float]:
         if self.x is None:
             raise ValueError("StateSpaceModel must be fitted before expected_goals()")
-        if home not in self._idx or away not in self._idx:
-            raise ValueError(
-                f"Unknown team(s): check '{home}' / '{away}' against self.teams"
-            )
-        hi, ai = self._idx[home], self._idx[away]
-        z_h = self.mu + self.x[hi] - self.x[self.n + ai] + self.home_adv
-        z_a = self.mu + self.x[ai] - self.x[self.n + hi]
+        # Teams absent from the training window (newly promoted, no history yet)
+        # get the league-mean rating 0.0 — the filter can still emit a
+        # prior-style prediction for them instead of erroring out.
+        n = self.n
+        hi = self._idx.get(home, -1)
+        ai = self._idx.get(away, -1)
+        ah = self.x[hi] if hi >= 0 else 0.0
+        ad = self.x[ai] if ai >= 0 else 0.0
+        dh = self.x[n + hi] if hi >= 0 else 0.0
+        dd = self.x[n + ai] if ai >= 0 else 0.0
+        z_h = self.mu + ah - dd + self.home_adv
+        z_a = self.mu + ad - dh
         return float(np.exp(z_h)), float(np.exp(z_a))
 
     @property

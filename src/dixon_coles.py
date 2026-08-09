@@ -16,6 +16,8 @@ than old ones (form matters more than a result from 3 seasons ago) — this is
 the "xi" (half-life) parameter in the original paper.
 """
 
+from __future__ import annotations
+
 import numpy as np
 from scipy.optimize import minimize
 from scipy.stats import poisson
@@ -59,14 +61,25 @@ class DixonColes:
         days = np.clip(days, 0, None)
         return np.exp(-self.xi * days)
 
-    def fit(self, matches, ref_date=None, target: str = "goals"):
+    def fit(
+        self,
+        matches,
+        ref_date=None,
+        target: str = "goals",
+        x0: np.ndarray | None = None,
+    ):
         """matches: list of dicts with date, home_team, away_team, home_goals, away_goals.
 
         target='goals' fits the classical Poisson likelihood. target='xg' instead
         fits a log-space Gaussian objective on home_xg/away_xg — xG is a continuous
         estimate of the goal rate, so the Poisson pmf cannot score it directly and a
         log-normal objective is the natural fit.
-        """
+
+        x0: optional initial parameter vector [attack_0..n, defense_0..n, home_adv,
+        rho] in the same team order this fit will use. Passed through by
+        walk-forward backtests as a warm start so the optimizer converges faster
+        (team order can shift between windows, so callers build x0 with
+        _warm_start_vector())."""
         if target not in ("goals", "xg"):
             raise ValueError("target must be 'goals' or 'xg'")
         self.teams = sorted(
@@ -91,7 +104,8 @@ class DixonColes:
         # Constraint: mean(attack) = 0 for identifiability.
         # We enforce this *post-fit* by re-centering, which avoids biasing the
         # likelihood with a penalty term. (Dixon & Coles 1997, Section 2.2)
-        x0 = np.concatenate([np.zeros(n), np.zeros(n), [0.25], [-0.05]])
+        if x0 is None or len(x0) != 2 * n + 2:
+            x0 = np.concatenate([np.zeros(n), np.zeros(n), [0.25], [-0.05]])
 
         def _nll(params, out_lam=None, out_mu=None):
             atk = params[:n]
@@ -169,12 +183,15 @@ class DixonColes:
         return self
 
     def expected_goals(self, home, away):
-        if home not in self.attack or away not in self.attack:
-            raise ValueError(
-                f"Unknown team(s): check '{home}' / '{away}' against self.teams"
-            )
-        lam = np.exp(self.attack[home] - self.defense[away] + self.home_adv)
-        mu = np.exp(self.attack[away] - self.defense[home])
+        # Teams with no training history (newly promoted) fall back to the
+        # league-mean attack/defense of 0.0 so a prior-style prediction is still
+        # possible — the market features then carry the fixture.
+        atk_h = self.attack.get(home, 0.0)
+        atk_a = self.attack.get(away, 0.0)
+        dfn_h = self.defense.get(home, 0.0)
+        dfn_a = self.defense.get(away, 0.0)
+        lam = np.exp(atk_h - dfn_a + self.home_adv)
+        mu = np.exp(atk_a - dfn_h)
         return lam, mu
 
     def score_matrix(self, home, away, max_goals=10):

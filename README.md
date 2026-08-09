@@ -57,12 +57,27 @@ data/raw/SP1/2022-23.csv
 ```
 Aim for at least 5-6 seasons per league for the Dixon-Coles fit to be stable.
 
-Match-level xG from **Understat** (2014-15 onward, no API key):
+Match-level xG from **Understat** (2014-15 onward, no API key). The team-name
+map covers all three leagues, so a single command per league caches clean
+`data/xg/<LEAGUE>/<season>.csv` files that join onto the results by
+(date, home_team, away_team) — including fixtures off by a day (timezone /
+postponed matches, joined within a ±14-day window):
 ```
-python scripts/scrape_understat.py --league EPL --seasons 5   # caches data/xg/EPL/*.csv
-python backtest.py --league EPL --xg-dir data/xg              # xG features enabled
+python scripts/scrape_understat.py --league EPL --seasons 5      # data/xg/EPL/
+python scripts/scrape_understat.py --league LALIGA --seasons 5   # data/xg/LALIGA/
+python scripts/scrape_understat.py --league SERIEA --seasons 5   # data/xg/SERIEA/
+python backtest.py --league EPL --xg-dir data/xg                 # xG features enabled
 python predict.py "Arsenal" "Chelsea" --xg-dir data/xg
 ```
+`--seasons N` always means "the N most recent *complete* seasons" (in August
+2026 that is 2021-22 .. 2025-26). Use `--from 2021 --to 2025` for an explicit
+range.
+
+Odds columns: recent football-data.co.uk files carry `B365H/D/A` and Pinnacle
+closing `PSH/PSD/PSA`, but **not** the BetBrain averages (`BbAv*`) or Pinnacle
+opening lines (`PH/PD/PA`). The market-residual layer therefore uses the B365
+closing line, and the opening→closing **line-movement features are inactive**
+until files with `PH/PD/PA` are used.
 
 For upcoming *fixtures* (not historical results) and live odds, you'd want
 an API like API-Football or the football-data.org API — those need paid/free
@@ -79,9 +94,16 @@ pip install -r requirements.txt
 python predict.py --demo
 python backtest.py --demo
 
+# Web app (served at http://localhost:8000):
+make web            # or: uvicorn app.main:app --reload
+
 # With real data:
 python predict.py "Arsenal" "Chelsea" --league EPL --data-dir data/raw
 python backtest.py --league EPL --data-dir data/raw
+
+# Tune the model + staking hyperparameters on real data (walk-forward OOS):
+python scripts/calibrate_model.py --league EPL --xg-dir data/xg --grid quick
+python scripts/calibrate_model.py --league EPL --xg-dir data/xg --write-config
 
 # With market odds for a single fixture (residual-vs-market inference):
 python predict.py "Arsenal" "Chelsea" --odds 2.1 3.4 3.6
@@ -89,7 +111,11 @@ python predict.py "Arsenal" "Chelsea" --odds 2.1 3.4 3.6
 
 Team names must match football-data.co.uk's spelling exactly (e.g. "Man
 United" not "Manchester United") — check `model.dc.teams` after loading if
-predictions error out on an unknown team.
+predictions error out on an unknown team. Teams with no matches in the
+training window (newly promoted sides) are handled with a league-mean prior:
+the state-space and Dixon-Coles models emit neutral ratings and the closing
+line carries the fixture, so their matches are still part of the backtest
+rather than being dropped.
 
 ## Always backtest before trusting a prediction
 
@@ -109,6 +135,26 @@ When odds columns are present it also reports:
 - **Value-bet P&L** and the covariance-adjusted **Kelly staking report**
   (Sharpe, max drawdown, CVaR).
 
+## Tuning
+
+`scripts/calibrate_model.py` runs the same walk-forward backtest over a grid of
+model and staking hyperparameters and reports honest out-of-sample metrics per
+combo (overall log loss, residual-vs-market log loss, edge correlation, Kelly
+Sharpe). Run it on real data and it prints the best combo; add `--write-config`
+to write it into `config.yaml`:
+
+```
+python scripts/calibrate_model.py --league EPL --xg-dir data/xg --grid quick
+```
+
+On the current 5-season EPL set (walk-forward, ~1140 OOS matches) the tuned
+combo (`dc_xi=0.0035`, `dc_shrinkage=0.05`, `ss_q_xg=0.01`, `meta_C=0.5`,
+`kelly_corr=0.0`) improved overall log loss 1.0053 → 1.0025 and residual log
+loss +0.0392 → +0.0364. Note the honest headline: the model still does not
+beat the closing line out-of-sample — the residual stays positive — but it
+clearly beats the constant-prior baseline and the tuned staking config reports
+a better Sharpe than the shipped defaults.
+
 ## Files
 
 ```
@@ -118,14 +164,34 @@ src/
   elo.py             Elo rating engine
   features.py        form + H2H + congestion + league position + PageRank features
   market.py          implied probabilities, line movement, value bets
-  xg_loader.py       Understat xG scraper + cache + join helper
+  xg_loader.py       Understat xG scraper + cache + join helper (all 3 leagues)
   staking.py         covariance-adjusted fractional Kelly + risk metrics
   ensemble.py        stacks everything into calibrated final probabilities
   data_loader.py     football-data.co.uk CSV loader + synthetic data generator
 predict.py         CLI: input two teams, get a prediction (--odds, --xg-dir)
 backtest.py        walk-forward evaluation harness (--xg-dir)
-scripts/scrape_understat.py   fetch match-level xG into data/xg/
+scripts/scrape_understat.py   fetch match-level xG into data/xg/ (all leagues)
+scripts/calibrate_model.py    walk-forward hyperparameter tuning (ss_q, shrinkage, staking)
+app/main.py        FastAPI backend for the web UI (surfaces every metric)
+webapp/static/     single-page frontend (index.html, app.js, styles.css)
 ```
+
+## Web UI
+
+`make web` (or `uvicorn app.main:app --reload`) serves a single-page app at
+`http://localhost:8000`:
+
+- **Dashboard** — standings, outcome mix, goals-per-game trend, form, xG badge.
+- **Team Intelligence** — Elo, Dixon-Coles attack/defense **and** dynamic
+  (Kalman-filtered) attack/defense ratings per team.
+- **Match Predictor** — H/D/A, expected goals, most-likely score, score matrix,
+  **component breakdown** (Dixon-Coles / Elo / Dynamic / xG filter), dynamic xG,
+  and a **market-vs-model edge** panel from the last meeting's closing line.
+- **Backtest Lab** — walk-forward metrics, **residual log loss**, **edge
+  correlation**, **model-vs-market log loss**, and the full **staking report**
+  (Sharpe, max drawdown, CVaR, ROI, profit units).
+- **League Compare** — per-league log loss / Brier plus residual log loss, edge
+  correlation and Kelly Sharpe/ROI across leagues.
 
 ## Known limitations / future work
 
@@ -138,5 +204,16 @@ scripts/scrape_understat.py   fetch match-level xG into data/xg/
   and manager tenure are recognised signal but need data sources not in the
   current free pipeline (venue geography, UEFA fixtures, referee lists,
   weather APIs, coaching changes).
+- **Line movement** (`PH/PD/PA` Pinnacle opening odds) is not present in
+  recent football-data.co.uk files, so the opening→closing line-movement
+  features are dormant; drop in older/higher-tier files that carry those
+  columns to activate them.
+- **Newly promoted teams** have no training history in the earliest walk-forward
+  window; the state-space and Dixon-Coles models fall back to league-mean
+  ratings for them, so their fixtures are still predicted (largely off the
+  closing line) instead of being skipped.
+- **Hyperparameter defaults** (`ss_q`, `dc_shrinkage`, `kelly_corr`, ...) are
+  the shipped values; `scripts/calibrate_model.py` tunes them on real data via
+  walk-forward CV and can write the winners straight into `config.yaml`.
 - xG coverage starts 2014-15; older seasons run goals-only (handled
   automatically by the fallback).

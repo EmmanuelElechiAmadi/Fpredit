@@ -1,4 +1,4 @@
-.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data scrape-xg calibrate-elo demo predict predict-xg backtest backtest-xg backtest-save report
+.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data scrape-xg scrape-xg-all calibrate-elo calibrate-model demo predict predict-xg backtest backtest-xg backtest-save report web
 
 # ── Installation ──────────────────────────────────────────────────────────────
 
@@ -50,10 +50,21 @@ download-data:
 scrape-xg:
 	python3 scripts/scrape_understat.py --league EPL --seasons 5
 
+scrape-xg-all:
+	python3 scripts/scrape_understat.py --league EPL --seasons 5
+	python3 scripts/scrape_understat.py --league LALIGA --seasons 5
+	python3 scripts/scrape_understat.py --league SERIEA --seasons 5
+
 # ── Calibration ────────────────────────────────────────────────────────────────
 
 calibrate-elo:
 	python scripts/calibrate_elo_draw.py --demo
+
+calibrate-model:
+	python3 scripts/calibrate_model.py --league EPL --xg-dir data/xg --grid quick
+
+calibrate-model-write:
+	python3 scripts/calibrate_model.py --league EPL --xg-dir data/xg --grid quick --write-config
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 
@@ -77,6 +88,9 @@ backtest-save:
 
 report:
 	python3 scripts/report.py --league EPL
+
+web:
+	python3 -m uvicorn app.main:app --reload --port 8000
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 

@@ -54,9 +54,9 @@ class TestParseMatchesJson:
 
     def test_normalizes_team_names(self):
         df = _parse_matches_json(_sample_matches_json())
-        # Manchester City -> Man City, Tottenham -> Spurs (football-data.co.uk)
+        # Manchester City -> Man City, Tottenham -> Tottenham (football-data.co.uk)
         assert df.loc[0, "home_team"] == "Man City"
-        assert df.loc[1, "away_team"] == "Spurs"
+        assert df.loc[1, "away_team"] == "Tottenham"
         assert df.loc[0, "away_team"] == "Arsenal"
 
     def test_xg_values_float(self):

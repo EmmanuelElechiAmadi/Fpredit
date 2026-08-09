@@ -94,6 +94,14 @@ def covariance_adjusted_stakes(
     s_indep = np.diag(var)
     sigma = cov_shrinkage * s_corr + (1.0 - cov_shrinkage) * s_indep
 
+    # Ridge-regularize the covariance. A full weekend slate of correlated bets
+    # is near-singular (0.05 correlation over hundreds of matches), and solving
+    # the raw matrix produces degenerate alternating weights that collapse to a
+    # handful of huge long positions once negative legs are clipped to zero.
+    # Adding ~1% of the median variance to the diagonal keeps the solve stable
+    # while leaving the correlation structure intact.
+    sigma = sigma + np.eye(n) * max(1e-6, 0.01 * float(np.median(var)))
+
     # Portfolio Kelly (log-utility): w = inv(Sigma) mu, then clip and scale.
     try:
         w = np.linalg.solve(sigma + np.eye(n) * 1e-9, mu)

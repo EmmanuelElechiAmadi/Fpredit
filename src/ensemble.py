@@ -100,6 +100,25 @@ class FootballEnsemble:
             "pagerank_diff",
         ]
 
+    def _static_features(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Leak-free static features (form, H2H, congestion, position, PageRank).
+
+        Computed on the full chronological frame — every row's values use only
+        information available before its kickoff. Both training and inference
+        must call this on the full league frame so the meta-learner sees
+        identical feature semantics (a head-to-head subset would give a
+        systematically different 'pagerank_diff' / 'pos_diff' at inference).
+        """
+        df = df.sort_values("date").reset_index(drop=True)
+        df = rolling_form(df, window=self.form_window)
+        df["h2h_home_ppg_norm"] = head_to_head(
+            df, lookback_matches=self.h2h_lookback
+        ).values
+        df = fixture_congestion(df, self.congestion_days, self.load_days)
+        df = league_position(df, self.position_reset_days)
+        df = pagerank_strength(df)
+        return df
+
     def _build_feature_frame(
         self, df: pd.DataFrame, fit_elo=False, fit_dc=False
     ) -> pd.DataFrame:
@@ -109,14 +128,7 @@ class FootballEnsemble:
         if fit_dc:
             self.dc.fit(df.to_dict("records"))
 
-        df = df.sort_values("date").reset_index(drop=True)
-        df = rolling_form(df, window=self.form_window)
-        df["h2h_home_ppg_norm"] = head_to_head(
-            df, lookback_matches=self.h2h_lookback
-        ).values
-        df = fixture_congestion(df, self.congestion_days, self.load_days)
-        df = league_position(df, self.position_reset_days)
-        df = pagerank_strength(df)
+        df = self._static_features(df)
 
         # Dynamic (Kalman) filtered probabilities — leak-free by construction
         if self.dyn.filtered_probs is not None and len(self.dyn.filtered_probs) == len(
@@ -167,7 +179,30 @@ class FootballEnsemble:
                 df[c] = df[c].fillna(0.0)
         return df
 
-    def fit(self, df: pd.DataFrame, xg_df: pd.DataFrame | None = None):
+    def _dc_warm_start_vector(
+        self, state: dict | None, teams: list[str]
+    ) -> np.ndarray | None:
+        """Map a previous Dixon-Coles fit state (attack/defense dicts, home_adv,
+        rho) to an x0 vector for a new team ordering. Returns None when there is
+        no warm state (fresh fit)."""
+        if not state:
+            return None
+        n = len(teams)
+        idx = {t: i for i, t in enumerate(teams)}
+        x0 = np.zeros(2 * n + 2)
+        for t in teams:
+            x0[idx[t]] = state.get("attack", {}).get(t, 0.0)
+            x0[n + idx[t]] = state.get("defense", {}).get(t, 0.0)
+        x0[-2] = state.get("home_adv", 0.25)
+        x0[-1] = state.get("rho", -0.05)
+        return x0
+
+    def fit(
+        self,
+        df: pd.DataFrame,
+        xg_df: pd.DataFrame | None = None,
+        dc_warm_start: dict | None = None,
+    ):
         """df must be sorted ascending by date with columns:
         date, home_team, away_team, home_goals, away_goals, result (H/D/A).
 
@@ -182,9 +217,13 @@ class FootballEnsemble:
         self.has_xg = "home_xg" in df.columns and df["home_xg"].notna().any()
 
         # Static Dixon-Coles on goals — used for scoreline/EG diagnostics and
-        # as the standalone component reported to the user.
+        # as the standalone component reported to the user. Walk-forward
+        # backtests warm-start it from the previous window's fit.
         self.dc = DixonColes(**self._dc_kwargs)
-        self.dc.fit(matches)
+        self.dc.fit(
+            matches,
+            x0=self._dc_warm_start_vector(dc_warm_start, self.dc.teams),
+        )
 
         # Dynamic state-space model on goals: leak-free filtered probabilities
         self.dyn = StateSpaceModel(q=self.ss_q, prior_var=self.ss_prior_var)
@@ -234,6 +273,160 @@ class FootballEnsemble:
         self.meta.fit(X, y)
         return self
 
+    def predict_frame(
+        self,
+        test_df: pd.DataFrame,
+        market_odds: tuple | None = None,
+    ) -> pd.DataFrame:
+        """Predict H/D/A for a block of fixtures in one pass.
+
+        Static features are computed on the FULL train+test chronological frame
+        (identical semantics to training — this fixes the previous head-to-head
+        subset inference skew) and model components come from the trained state,
+        so nothing in the test block leaks into the model.
+
+        Parameters
+        ----------
+        test_df : pd.DataFrame with date, home_team, away_team (closing-odds
+            columns optional; when present they feed market-residual features).
+        market_odds : optional (home, draw, away) decimal odds applied to a
+            single-row frame (used by predict() for live odds from the CLI).
+
+        Returns
+        -------
+        pd.DataFrame with columns home_win, draw, away_win (indexed like test_df).
+        """
+        if self.train_df is None:
+            raise RuntimeError("FootballEnsemble must be fitted before predict_frame()")
+        test_df = test_df.sort_values("date")
+        if test_df.empty:
+            return pd.DataFrame(
+                columns=[
+                    "home_win",
+                    "draw",
+                    "away_win",
+                    "expected_home_goals",
+                    "expected_away_goals",
+                    "over_2_5",
+                    "btts_yes",
+                ]
+            )
+
+        # Concat of an all-NaN pseudo row with the training frame triggers a
+        # pandas 2.3 FutureWarning about all-NA dtype inference — harmless for
+        # our mixed object/numeric columns, so silence it just here.
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            combined = (
+                pd.concat([self.train_df, test_df], ignore_index=True)
+                .sort_values("date")
+                .reset_index(drop=True)
+            )
+        # Pseudo/upcoming rows carry NaN goals; the static feature functions
+        # need a numeric value (the phantom 0-0 only affects the pseudo row's
+        # own features, which are computed from strictly prior matches).
+        combined["home_goals"] = pd.to_numeric(
+            combined["home_goals"], errors="coerce"
+        ).fillna(0)
+        combined["away_goals"] = pd.to_numeric(
+            combined["away_goals"], errors="coerce"
+        ).fillna(0)
+        feat = self._static_features(combined)
+        n_train = len(self.train_df)
+
+        # Market features for the test block (closing line), when odds present
+        mkt = None
+        if self.use_market_features and odds_columns_available(test_df):
+            mkt = add_market_features(test_df)
+
+        rows = []
+        for i, (_, row) in enumerate(test_df.iterrows()):
+            home_team, away_team = row["home_team"], row["away_team"]
+            f = feat.iloc[n_train + i]
+
+            try:
+                dc_p = self.dc.match_probabilities(home_team, away_team)
+                dyn_p = self.dyn.match_probabilities(home_team, away_team)
+            except ValueError:
+                # Team has no training history (e.g. newly promoted); cannot
+                # produce honest ratings for it. Backtesters skip these rows.
+                rows.append(
+                    {
+                        "home_win": np.nan,
+                        "draw": np.nan,
+                        "away_win": np.nan,
+                        "expected_home_goals": np.nan,
+                        "expected_away_goals": np.nan,
+                        "over_2_5": np.nan,
+                        "btts_yes": np.nan,
+                    }
+                )
+                continue
+            eh, ed, ea = self.elo.win_draw_loss_prob(home_team, away_team)
+
+            xg_p = None
+            if "xg_home" in self.feature_cols and self.dyn_xg is not None:
+                xg_p = self.dyn_xg.match_probabilities(home_team, away_team)
+
+            # Market features: single-row live odds override the CSV closing line.
+            if market_odds is not None and len(test_df) == 1:
+                o_h, o_d, o_a = market_odds
+                inv = [1.0 / o_h, 1.0 / o_d, 1.0 / o_a]
+                tot = sum(inv)
+                m_h, m_d, m_a = [p / tot for p in inv]
+            elif mkt is not None:
+                m_h = mkt.iloc[i]["implied_home"]
+                m_d = mkt.iloc[i]["implied_draw"]
+                m_a = mkt.iloc[i]["implied_away"]
+                if pd.isna(m_h):
+                    m_h = m_d = m_a = _NEUTRAL
+            else:
+                m_h = m_d = m_a = _NEUTRAL
+
+            values = {
+                "dyn_home": dyn_p["home_win"],
+                "dyn_draw": dyn_p["draw"],
+                "dyn_away": dyn_p["away_win"],
+                "elo_home": eh,
+                "elo_draw": ed,
+                "elo_away": ea,
+                "form_ppg_diff": f["form_ppg_diff"],
+                "form_goal_diff": f["form_goal_diff"],
+                "rest_diff": f["rest_diff"],
+                "h2h_home_ppg_norm": f["h2h_home_ppg_norm"],
+                "load_diff": f["load_diff"],
+                "congestion_diff": f["congestion_diff"],
+                "pos_diff": f["pos_diff"],
+                "pagerank_diff": f["pagerank_diff"],
+                "xg_home": xg_p["home_win"] if xg_p is not None else _NEUTRAL,
+                "xg_draw": xg_p["draw"] if xg_p is not None else _NEUTRAL,
+                "xg_away": xg_p["away_win"] if xg_p is not None else _NEUTRAL,
+                "market_home": m_h,
+                "market_draw": m_d,
+                "market_away": m_a,
+                "line_mv_home": 0.0,
+                "line_mv_draw": 0.0,
+                "line_mv_away": 0.0,
+                "line_mv_abs": 0.0,
+            }
+            x = pd.DataFrame([{c: values[c] for c in self.feature_cols}]).fillna(0.0)
+            proba = self.meta.predict_proba(self.scaler.transform(x))[0]
+            classes = list(self.meta.classes_)
+            rows.append(
+                {
+                    "home_win": proba[classes.index("H")],
+                    "draw": proba[classes.index("D")],
+                    "away_win": proba[classes.index("A")],
+                    "expected_home_goals": dc_p["expected_goals"][0],
+                    "expected_away_goals": dc_p["expected_goals"][1],
+                    "over_2_5": dc_p["over_2_5"],
+                    "btts_yes": dc_p["btts_yes"],
+                }
+            )
+        return pd.DataFrame(rows, index=test_df.index)
+
     def predict(
         self,
         home_team: str,
@@ -253,97 +446,37 @@ class FootballEnsemble:
         if as_of_date is None:
             as_of_date = self.train_df["date"].max() + pd.Timedelta(days=7)
 
+        # Build the pseudo row with every column of the training frame (all NaN
+        # except identity/date) so the concat in predict_frame doesn't produce
+        # all-NA columns with ambiguous dtypes.
+        pseudo_vals: dict[str, object] = {
+            c: np.nan
+            for c in self.train_df.columns
+            if c not in ("date", "home_team", "away_team")
+        }
+        pseudo_vals.update(
+            {
+                "date": pd.Timestamp(as_of_date),
+                "home_team": home_team,
+                "away_team": away_team,
+            }
+        )
+        pseudo_row = pd.DataFrame([pseudo_vals])
+        probs = self.predict_frame(pseudo_row, market_odds=market_odds).iloc[0]
+
         dc_p = self.dc.match_probabilities(home_team, away_team)
         dyn_p = self.dyn.match_probabilities(home_team, away_team)
         eh, ed, ea = self.elo.win_draw_loss_prob(home_team, away_team)
 
-        recent = self.train_df[
-            (self.train_df["home_team"].isin([home_team, away_team]))
-            | (self.train_df["away_team"].isin([home_team, away_team]))
-        ]
-        pseudo_row = pd.DataFrame(
-            [
-                {
-                    "date": as_of_date,
-                    "home_team": home_team,
-                    "away_team": away_team,
-                    "home_goals": np.nan,
-                    "away_goals": np.nan,
-                    "result": None,
-                }
-            ]
-        )
-        combined = (
-            pd.concat([recent, pseudo_row], ignore_index=True)
-            .sort_values("date")
-            .reset_index(drop=True)
-        )
-        combined = combined.assign(
-            home_goals=combined["home_goals"].fillna(0),
-            away_goals=combined["away_goals"].fillna(0),
-        )
-        combined = rolling_form(combined, window=self.form_window)
-        combined = fixture_congestion(combined, self.congestion_days, self.load_days)
-        combined = league_position(combined, self.position_reset_days)
-        combined = pagerank_strength(combined)
-        last_row = combined.iloc[-1]
-        h2h = head_to_head(
-            pd.concat([recent, pseudo_row], ignore_index=True),
-            lookback_matches=self.h2h_lookback,
-        ).iloc[-1]
-
-        # Market features: use provided odds, or neutral 1/3 when unknown
-        if "market_home" in self.feature_cols:
-            if market_odds is not None:
-                o_h, o_d, o_a = market_odds
-                inv = [1.0 / o_h, 1.0 / o_d, 1.0 / o_a]
-                tot = sum(inv)
-                m_h, m_d, m_a = [p / tot for p in inv]
-            else:
-                m_h = m_d = m_a = _NEUTRAL
-            line_h = line_d = line_a = line_abs = 0.0
-        else:
-            m_h = m_d = m_a = _NEUTRAL
-            line_h = line_d = line_a = line_abs = 0.0
-
-        # xG features (if the model was trained with them)
         xg_p = None
         if "xg_home" in self.feature_cols and self.dyn_xg is not None:
             xg_p = self.dyn_xg.match_probabilities(home_team, away_team)
 
-        values = {
-            "dyn_home": dyn_p["home_win"],
-            "dyn_draw": dyn_p["draw"],
-            "dyn_away": dyn_p["away_win"],
-            "elo_home": eh,
-            "elo_draw": ed,
-            "elo_away": ea,
-            "form_ppg_diff": last_row["form_ppg_diff"],
-            "form_goal_diff": last_row["form_goal_diff"],
-            "rest_diff": last_row["rest_diff"],
-            "h2h_home_ppg_norm": h2h,
-            "load_diff": last_row["load_diff"],
-            "congestion_diff": last_row["congestion_diff"],
-            "pos_diff": last_row["pos_diff"],
-            "pagerank_diff": last_row["pagerank_diff"],
-            "xg_home": xg_p["home_win"] if xg_p is not None else _NEUTRAL,
-            "xg_draw": xg_p["draw"] if xg_p is not None else _NEUTRAL,
-            "xg_away": xg_p["away_win"] if xg_p is not None else _NEUTRAL,
-            "market_home": m_h,
-            "market_draw": m_d,
-            "market_away": m_a,
-            "line_mv_home": line_h,
-            "line_mv_draw": line_d,
-            "line_mv_away": line_a,
-            "line_mv_abs": line_abs,
+        result = {
+            "H": probs["home_win"],
+            "D": probs["draw"],
+            "A": probs["away_win"],
         }
-        x = pd.DataFrame([{c: values[c] for c in self.feature_cols}])
-        x = x.fillna(0.0)
-        x_scaled = self.scaler.transform(x)
-        proba = self.meta.predict_proba(x_scaled)[0]
-        classes = list(self.meta.classes_)
-
-        result = {c: proba[classes.index(c)] for c in ["H", "D", "A"]}
         comps = {
             "dixon_coles": [dc_p["home_win"], dc_p["draw"], dc_p["away_win"]],
             "dynamic": [dyn_p["home_win"], dyn_p["draw"], dyn_p["away_win"]],

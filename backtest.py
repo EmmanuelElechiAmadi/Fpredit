@@ -49,7 +49,6 @@ def walk_forward_backtest(
     cfg=None,
     xg_df: pd.DataFrame | None = None,
 ):
-    from src.market import odds_columns_available
     from src.xg_loader import join_xg
 
     df = df.sort_values("date").reset_index(drop=True)
@@ -72,37 +71,39 @@ def walk_forward_backtest(
         "PSA",
     ]
 
+    dc_state = None
     cutoff = min_train_matches
     while cutoff + step_matches <= len(df):
         train = df.iloc[:cutoff]
         test = df.iloc[cutoff : cutoff + step_matches]
 
         model = build_ensemble(cfg)
-        model.fit(train, xg_df=None)
+        model.fit(train, xg_df=None, dc_warm_start=dc_state)
+        dc_state = {
+            "attack": dict(model.dc.attack),
+            "defense": dict(model.dc.defense),
+            "home_adv": float(model.dc.home_adv),
+            "rho": float(model.dc.rho),
+        }
 
-        for _, row in test.iterrows():
+        try:
+            pred_df = model.predict_frame(test)
+        except Exception as e:
+            log.warning("Window prediction failed: %s", e)
+            cutoff += step_matches
+            continue
+
+        for idx, row in test.iterrows():
             try:
-                # Pass closing odds to the meta-learner (residual-vs-market)
-                market_odds = None
-                if odds_columns_available(test):
-                    h = row.get("BbAvH")
-                    if pd.isna(h):
-                        h = row.get("B365H")
-                    d = row.get("BbAvD")
-                    if pd.isna(d):
-                        d = row.get("B365D")
-                    a = row.get("BbAvA")
-                    if pd.isna(a):
-                        a = row.get("B365A")
-                    if not (pd.isna(h) or pd.isna(d) or pd.isna(a)):
-                        market_odds = (float(h), float(d), float(a))
-
-                p = model.predict(
-                    row["home_team"],
-                    row["away_team"],
-                    as_of_date=row["date"],
-                    market_odds=market_odds,
-                )
+                p = pred_df.loc[idx]
+                if pd.isna(p["home_win"]):
+                    log.warning(
+                        "Skipping %s vs %s (%s): team has no training history",
+                        row["home_team"],
+                        row["away_team"],
+                        row["date"],
+                    )
+                    continue
                 rec = {
                     "date": row["date"],
                     "home_team": row["home_team"],
@@ -111,10 +112,10 @@ def walk_forward_backtest(
                     "pred_home_win": p["home_win"],
                     "pred_draw": p["draw"],
                     "pred_away_win": p["away_win"],
-                    "pred_over_2_5": p["over_2_5_goals"],
+                    "pred_over_2_5": p["over_2_5"],
                     "pred_btts_yes": p["btts_yes"],
-                    "expected_home_goals": p["expected_goals"][0],
-                    "expected_away_goals": p["expected_goals"][1],
+                    "expected_home_goals": p["expected_home_goals"],
+                    "expected_away_goals": p["expected_away_goals"],
                 }
                 # Carry any odds columns through so market comparison is possible.
                 for oc in odds_cols:

@@ -110,12 +110,17 @@ class TestDixonColes:
         lam, mu = dc.expected_goals("A", "B")
         assert lam > mu  # home advantage + A is slightly stronger
 
-    def test_expected_goals_unknown_team_raises(self, simple_matches):
-        """Asking for an unknown team should raise ValueError."""
+    def test_expected_goals_unknown_team_falls_back(self, simple_matches):
+        """Asking for an unknown team (newly promoted, no history) should fall
+        back to league-mean ratings rather than raising."""
         dc = DixonColes(xi=0.01)
         dc.fit(simple_matches)
-        with pytest.raises(ValueError, match="Unknown team"):
-            dc.expected_goals("A", "Unknown")
+        lam, mu = dc.expected_goals("A", "Unknown")
+        assert lam > 0 and mu > 0
+        probs = dc.match_probabilities("Unknown", "A")
+        assert sum(
+            [probs["home_win"], probs["draw"], probs["away_win"]]
+        ) == pytest.approx(1.0, abs=1e-6)
 
     def test_score_matrix_sum_to_one(self, simple_matches):
         """The score matrix should be a valid probability distribution."""

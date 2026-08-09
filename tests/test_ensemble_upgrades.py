@@ -118,3 +118,65 @@ class TestDynamicComponent:
         e2 = FootballEnsemble().fit(demo_data_with_xg)
         r2 = e2.predict("Team A", "Team B")
         assert r1["home_win"] == pytest.approx(r2["home_win"], abs=1e-6)
+
+
+class TestPredictFrame:
+    """Batched inference: full-frame features, index alignment, consistency."""
+
+    def test_predict_frame_columns_and_index(self, demo_data_with_xg):
+        model = FootballEnsemble().fit(demo_data_with_xg)
+        test = demo_data_with_xg.tail(20)
+        pred = model.predict_frame(test)
+        assert list(pred.columns) == [
+            "home_win",
+            "draw",
+            "away_win",
+            "expected_home_goals",
+            "expected_away_goals",
+            "over_2_5",
+            "btts_yes",
+        ]
+        assert list(pred.index) == list(test.index)
+        assert pred["home_win"].between(0, 1).all()
+
+    def test_predict_frame_matches_single_predict(self, demo_data_with_xg):
+        model = FootballEnsemble().fit(demo_data_with_xg)
+        row = demo_data_with_xg.iloc[-1]
+        pred = model.predict_frame(demo_data_with_xg.tail(1)).iloc[0]
+        # Single predict uses the fixture's date so both paths share the same
+        # reference point (default as_of_date = train_max + 7d is for upcoming
+        # fixtures and legitimately differs).
+        single = model.predict(
+            row["home_team"], row["away_team"], as_of_date=row["date"]
+        )
+        assert pred["home_win"] == pytest.approx(single["home_win"], abs=1e-6)
+        assert pred["draw"] == pytest.approx(single["draw"], abs=1e-6)
+        assert pred["away_win"] == pytest.approx(single["away_win"], abs=1e-6)
+
+    def test_predict_frame_unknown_team_prior(self, demo_data_with_xg):
+        """Unknown teams (newly promoted, no history) get a league-mean prior
+        prediction instead of a NaN/raise."""
+        model = FootballEnsemble().fit(demo_data_with_xg)
+        test = demo_data_with_xg.tail(1).copy()
+        test.loc[test.index[0], "home_team"] = "Team NEVER SEEN"
+        pred = model.predict_frame(test).iloc[0]
+        assert pred["home_win"] == pred["home_win"]  # not NaN
+        assert 0 <= pred["home_win"] <= 1
+        assert pred["home_win"] + pred["draw"] + pred["away_win"] == pytest.approx(
+            1.0, abs=1e-6
+        )
+
+    def test_predict_frame_probabilities_sum_to_one(self, demo_data):
+        model = FootballEnsemble().fit(demo_data)
+        test = demo_data.tail(30)
+        pred = model.predict_frame(test)
+        row_sums = pred[["home_win", "draw", "away_win"]].sum(axis=1)
+        assert row_sums.sub(1.0).abs().max() < 1e-6
+
+    def test_predict_frame_with_market_odds_single(self, demo_data_with_odds):
+        model = FootballEnsemble().fit(demo_data_with_odds)
+        test = demo_data_with_odds.tail(1)
+        pred = model.predict_frame(test, market_odds=(2.0, 3.4, 3.8)).iloc[0]
+        assert pred["home_win"] + pred["draw"] + pred["away_win"] == pytest.approx(
+            1.0, abs=1e-6
+        )
