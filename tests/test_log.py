@@ -22,6 +22,22 @@ class TestGetLogger:
         handlers = logger.handlers
         assert any(isinstance(h, logging.StreamHandler) for h in handlers)
 
+    def test_file_handler_when_enabled(self, tmp_path, monkeypatch):
+        log_file = tmp_path / "predictor.log"
+        monkeypatch.setenv("FOOTBALL_PREDICTOR__logging__file", str(log_file))
+        logger = get_logger("test.file_handler")
+        next(h for h in logger.handlers if isinstance(h, logging.FileHandler))
+        logger.info("file log message")
+        assert log_file.exists()
+        assert "file log message" in log_file.read_text()
+
+    def test_default_format_fallback(self, monkeypatch):
+        monkeypatch.delenv("FOOTBALL_PREDICTOR__logging__format", raising=False)
+        logger = get_logger("test.default_fmt")
+        assert any(
+            h.formatter and "%(asctime)s" in h.formatter._fmt for h in logger.handlers
+        )
+
     def test_same_name_returns_cached(self):
         logger1 = get_logger("test.cached")
         logger2 = get_logger("test.cached")

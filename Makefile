@@ -7,7 +7,7 @@ install:
 
 install-dev:
 	pip install pre-commit
-	pre-commit install
+	python3 -m pre_commit install
 
 editable:
 	pip install -e .
@@ -29,15 +29,15 @@ test-coverage:
 # ── Linting & Formatting ──────────────────────────────────────────────────────
 
 lint:
-	pre-commit run ruff --all-files
+	python3 -m pre_commit run ruff --all-files
 
 format:
-	pre-commit run black --all-files
-	pre-commit run isort --all-files
+	python3 -m pre_commit run black --all-files
+	python3 -m pre_commit run isort --all-files
 
 format-check:
-	pre-commit run black --all-files
-	pre-commit run isort --all-files
+	python3 -m pre_commit run black --all-files
+	python3 -m pre_commit run isort --all-files
 
 typecheck:
 	mypy src/ --ignore-missing-imports
