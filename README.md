@@ -176,6 +176,39 @@ the model's worse result is a genuine signal (its "value" calls are wrong, not
 a pipeline bug), and the residual against **Pinnacle close** is also positive
 (~+0.038) — the model fails the sharper-line test too.
 
+## The pre-registered edge test
+
+The question this pipeline exists to answer — *does the model beat the closing
+line out-of-sample?* — is now run under a pre-registered protocol, not an
+after-the-fact backtest:
+
+- **Protocol:** `docs/edge_test_preregistration.md` — hypothesis, success
+  thresholds (residual log loss ≤ −0.005 on the held-out season, persistence
+  across leagues, positive edge correlation), and what is forbidden after
+  seeing the result (re-picking thresholds, tuning on the holdout, dropping
+  leagues).
+- **Holdout:** the most recent season is never used for training, tuning, or
+  feature selection. Evaluate it exactly once:
+  ```bash
+  python backtest.py --league EPL --xg-dir data/xg --holdout-seasons 1 \
+      --output backtest_results_holdout.csv
+  # tuning must exclude the same season:
+  python scripts/calibrate_model.py --league EPL --xg-dir data/xg \
+      --exclude-seasons 2025-26 --grid quick
+  ```
+- **Power:** `scripts/power_analysis.py` computes the per-match residual
+  variance and how many matches are needed to detect a given edge. On the
+  current EPL set the residual SD is ~0.46: a 1% edge needs ~12,900 OOS
+  matches, a 2% edge ~3,200, a 3% edge ~1,400. The observed +0.038 residual is
+  a *confident* null for edges ≥ ~3% (≈3.2 SE from zero) — but the sample
+  cannot rule out a true 1–2% edge.
+
+**Result to date (pre-registered holdout, 2025-26 EPL, 380 matches):** residual
+log loss **+0.034**, edge correlation **−0.19**, value-bet ROI **−8.8%** —
+fails all three pre-registered criteria. This is a clean, falsifiable null:
+the model is well-calibrated context but not a source of edge against the
+closing line.
+
 ## Files
 
 ```
@@ -194,6 +227,7 @@ backtest.py        walk-forward evaluation harness (--xg-dir)
 scripts/scrape_understat.py   fetch match-level xG into data/xg/ (all leagues)
 scripts/calibrate_model.py    walk-forward hyperparameter tuning (ss_q, shrinkage, staking)
 scripts/market_control.py     sanity-check control: bet-the-market vs model strategies
+scripts/power_analysis.py     statistical power / minimum detectable edge for the edge test
 app/main.py        FastAPI backend for the web UI (surfaces every metric)
 webapp/static/     single-page frontend (index.html, app.js, styles.css)
 ```

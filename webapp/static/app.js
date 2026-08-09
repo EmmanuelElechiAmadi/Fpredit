@@ -625,9 +625,36 @@ async function loadBacktest() {
           <div><span class="muted">Model vs market</span><b>${fmtNum(m.market.model_minus_market_log_loss, 4)}</b></div>
           <div><span class="muted">Value bets flagged</span><b>${m.market.value_bets}</b></div>
           <div><span class="muted">Value bet yield</span><b>${fmtPct(m.market.value_bet_yield)}</b></div>
-        </div>`
+        </div>
+        ${renderValueBetsTable(d.recent_value_bets)}`
       : `<p class="muted">Market data not available for this league.</p>`;
   });
+}
+
+/* Recent flagged value bets (most informative when the aggregate looks bad). */
+function renderValueBetsTable(bets) {
+  if (!bets || !bets.length) return "";
+  const rows = bets
+    .map(
+      (b) => `<tr>
+        <td class="muted">${b.date}</td>
+        <td class="team-cell">${b.home_team} <span class="muted">vs</span> ${b.away_team}</td>
+        <td><b>${b.market}</b></td>
+        <td>${fmtPct(b.model_prob)}</td>
+        <td>${fmtPct(b.implied_prob)}</td>
+        <td class="${b.edge > 0 ? "c-h" : "c-a"}">${(b.edge * 100).toFixed(1)}pt</td>
+        <td>${b.odds}</td>
+        <td class="${b.pnl >= 0 ? "c-h" : "c-a"}">${b.pnl >= 0 ? "+" : ""}${b.pnl}</td>
+      </tr>`
+    )
+    .join("");
+  return `<h5 style="margin-top:16px">Recent value bets</h5>
+    <div class="table-wrap" style="max-height:320px;overflow:auto">
+      <table class="table">
+        <thead><tr><th>Date</th><th>Fixture</th><th>Pick</th><th>Model</th><th>Market</th><th>Edge</th><th>Odds</th><th>P&L</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 /* ---------- League Compare ---------- */

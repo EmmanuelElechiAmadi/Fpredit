@@ -588,6 +588,47 @@ def backtest(
 
     metrics = _normalize_metrics(bt.evaluate(result_df, with_odds=True))
 
+    # Recent flagged value bets (most interesting for a human reviewer).
+    recent_value_bets = []
+    if not result_df.empty and "B365H" in result_df.columns:
+        from src.market import value_bets
+
+        vb_df = result_df.assign(result=result_df["actual"])
+        mp = result_df[["pred_home_win", "pred_draw", "pred_away_win"]].rename(
+            columns={
+                "pred_home_win": "home_win",
+                "pred_draw": "draw",
+                "pred_away_win": "away_win",
+            }
+        )
+        vb = value_bets(vb_df, mp)
+        if not vb.empty:
+            recent_value_bets = (
+                vb.sort_values("date")
+                .tail(25)[
+                    [
+                        "date",
+                        "home_team",
+                        "away_team",
+                        "market",
+                        "model_prob",
+                        "implied_prob",
+                        "edge",
+                        "odds",
+                        "pnl",
+                    ]
+                ]
+                .assign(
+                    date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
+                    model_prob=lambda d: d["model_prob"].round(3),
+                    implied_prob=lambda d: d["implied_prob"].round(3),
+                    edge=lambda d: d["edge"].round(3),
+                    odds=lambda d: d["odds"].round(2),
+                    pnl=lambda d: d["pnl"].round(2),
+                )
+                .to_dict("records")
+            )
+
     # Monthly accuracy curve
     result_df = result_df.sort_values("date")
     result_df["month"] = result_df["date"].dt.to_period("M").astype(str)
@@ -609,6 +650,7 @@ def backtest(
         "metrics": metrics,
         "n_matches": len(result_df),
         "monthly_accuracy": monthly_acc,
+        "recent_value_bets": recent_value_bets,
     }
     _BT_CACHE[cache_key] = (now, payload)
     return payload

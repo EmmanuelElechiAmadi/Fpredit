@@ -1,4 +1,4 @@
-.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data scrape-xg scrape-xg-all calibrate-elo calibrate-model calibrate-model-write market-control demo predict predict-xg backtest backtest-xg backtest-save report web
+.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data scrape-xg scrape-xg-all calibrate-elo calibrate-model calibrate-model-write market-control power-analysis holdout-test demo predict predict-xg backtest backtest-xg backtest-save report web
 
 # ── Installation ──────────────────────────────────────────────────────────────
 
@@ -68,6 +68,12 @@ calibrate-model-write:
 
 market-control:
 	python3 scripts/market_control.py --league EPL --xg-dir data/xg
+
+power-analysis:
+	python3 scripts/power_analysis.py --results /tmp/bt_epl_tuned.csv
+
+holdout-test:
+	python3 backtest.py --league EPL --xg-dir data/xg --holdout-seasons 1 --output backtest_results_holdout.csv
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 

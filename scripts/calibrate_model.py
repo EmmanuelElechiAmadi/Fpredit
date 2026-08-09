@@ -272,6 +272,13 @@ def main():
         default=None,
         help="Cap total backtests run (for quick iterations)",
     )
+    ap.add_argument(
+        "--exclude-seasons",
+        nargs="*",
+        default=None,
+        help="Season labels (e.g. '2025-26') to exclude from tuning — the "
+        "pre-registered holdout must never be used for model selection.",
+    )
     args = ap.parse_args()
 
     cfg = load_config()
@@ -285,6 +292,20 @@ def main():
         if xg_df is not None:
             df = join_xg(df, xg_df)
             print(f"Loaded {args.league}: {len(df)} matches + xG")
+
+        if args.exclude_seasons:
+            from backtest import _season_start_year
+
+            excluded = {int(s.split("-")[0]) for s in args.exclude_seasons}
+            keep = ~df["date"].map(_season_start_year).isin(excluded)
+            dropped = int((~keep).sum())
+            df = df[keep].reset_index(drop=True)
+            print(
+                f"Excluding {args.exclude_seasons} from tuning "
+                f"({dropped} matches held out) -> {len(df)} tuning matches"
+            )
+            if xg_df is not None:
+                xg_df = xg_df[keep].reset_index(drop=True)
 
     calibrate(
         df,

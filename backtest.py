@@ -42,6 +42,28 @@ log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 
 
+def _season_start_year(ts) -> int:
+    """European-season start year: Aug-May spans belong to the starting year.
+
+    A 2023-08-11 kickoff -> 2023; a 2024-05-19 kickoff (same season) -> 2023.
+    """
+    return ts.year if ts.month >= 7 else ts.year - 1
+
+
+def split_holdout(df: pd.DataFrame, n_seasons: int = 1):
+    """Split into (tuning, holdout) by the most recent n complete seasons.
+
+    The holdout is meant to be touched exactly once, at final evaluation —
+    never for training, tuning, or feature selection.
+    """
+    df = df.sort_values("date").reset_index(drop=True)
+    starts = df["date"].map(_season_start_year)
+    holdout_start = sorted(set(starts))[-n_seasons]
+    train = df[starts < holdout_start].copy()
+    holdout = df[starts >= holdout_start].copy()
+    return train, holdout
+
+
 def walk_forward_backtest(
     df: pd.DataFrame,
     min_train_matches=380,
@@ -296,6 +318,15 @@ if __name__ == "__main__":
         default=None,
         help="Path to save detailed predictions CSV (e.g. backtest_results.csv)",
     )
+    ap.add_argument(
+        "--holdout-seasons",
+        type=int,
+        default=0,
+        help="Treat the most recent N seasons as a held-out evaluation set: "
+        "train once on everything before them, predict the holdout, and report "
+        "only that window (pre-registered protocol — see "
+        "docs/edge_test_preregistration.md).",
+    )
     args = ap.parse_args()
 
     cfg = load_config()
@@ -317,10 +348,25 @@ if __name__ == "__main__":
         xg_df = generate_synthetic_xg(df)
         print("Demo xG attached (synthetic)")
 
+    min_train = cfg.backtest.min_train_matches
+    step = cfg.backtest.step_matches
+    if args.holdout_seasons > 0:
+        train_df, holdout_df = split_holdout(df, args.holdout_seasons)
+        min_train = len(train_df)
+        step = len(holdout_df)
+        print(
+            f"Holdout protocol: training on {min_train} matches "
+            f"(through {train_df['date'].max().date()}), evaluating only "
+            f"{step} held-out matches (from {holdout_df['date'].min().date()})."
+        )
+        if xg_df is not None:
+            xg_df = xg_df[xg_df["date"] < holdout_df["date"].min()].copy()
+            print(f"xG restricted to the training window ({len(xg_df)} matches)")
+
     result_df = walk_forward_backtest(
         df,
-        min_train_matches=cfg.backtest.min_train_matches,
-        step_matches=cfg.backtest.step_matches,
+        min_train_matches=min_train,
+        step_matches=step,
         cfg=cfg,
         xg_df=xg_df,
     )
