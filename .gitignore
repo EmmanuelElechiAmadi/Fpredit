@@ -56,3 +56,4 @@ data/raw/**/*.csv
 data/raw/*.csv
 logs/
 *.log
+reports/
