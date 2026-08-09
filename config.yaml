@@ -1,0 +1,51 @@
+# Football Predictor — Configuration
+# All model hyperparameters, file paths, and runtime settings in one place.
+# Override any value via environment variable: FOOTBALL_PREDICTOR__<KEY>
+#
+# Usage:
+#   from src.config import load_config
+#   cfg = load_config()
+#   print(cfg.model.elo_k)
+
+model:
+  # Dixon-Coles time decay (xi). 0.0018/day ~= 55% weight after 1 year
+  dc_xi: 0.0018
+
+  # Elo parameters
+  elo_k: 20.0               # Update speed; higher = more reactive
+  elo_home_advantage: 75.0  # Elo points added to home team
+  elo_initial_rating: 1500.0
+  elo_goal_diff_multiplier: true
+  elo_draw_width: 0.44      # Heuristic; run scripts/calibrate_elo_draw.py for data-driven fit
+
+  # Meta-learner (logistic regression)
+  meta_max_iter: 2000
+  meta_C: 1.0               # Inverse regularization strength
+
+  # Feature engineering
+  form_window: 5            # Rolling matches for form features
+  h2h_lookback: 5           # Past meetings for head-to-head feature
+
+data:
+  allowed_leagues:
+    - EPL
+    - LALIGA
+    - SERIEA
+  data_dir: data/raw
+  cache_dir: models
+
+backtest:
+  min_train_matches: 380    # ~one EPL season
+  step_matches: 190         # ~half-season steps
+
+split:
+  train_ratio: 0.60         # Chronological train fraction
+  val_ratio: 0.15           # Validation fraction
+  test_ratio: 0.25          # Test fraction
+  n_cv_windows: 5           # Walk-forward cross-validation windows
+  min_train_frac: 0.40      # Minimum fraction of data in first CV training window
+
+logging:
+  level: INFO               # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+  file: null                # Set to a path like "logs/predictor.log" to enable file logging
