@@ -42,8 +42,8 @@ log = logging.getLogger("webapp")
 CACHE_TTL = 60 * 5  # 5 minutes for data-derived endpoint results
 _BT_CACHE_TTL = 60 * 30  # backtests are expensive; hold for 30 minutes
 
-# (league, min_train, step, invalidation_hash) -> (computed_at, {metrics, ...})
-_BT_CACHE: dict[tuple, tuple[float, dict]] = {}
+# (league, min_train, step, invalidation_hash) -> (computed_at, payload, result_df)
+_BT_CACHE: dict[tuple, tuple[float, dict, pd.DataFrame]] = {}
 
 app = FastAPI(title="Football Predictor API", version="1.0.0")
 
@@ -153,6 +153,114 @@ def _load_xg_cached(league: str, xg_dir: str = "data/xg") -> pd.DataFrame | None
 def _xg_available(league: str) -> bool:
     xg = _load_xg_cached(league)
     return xg is not None and not xg.empty
+
+
+def _compute_backtest(df, xg_df, min_train, step, cfg, bt) -> pd.DataFrame:
+    return bt.walk_forward_backtest(
+        df,
+        min_train_matches=min_train,
+        step_matches=step,
+        cfg=cfg,
+        xg_df=xg_df,
+    )
+
+
+def _get_backtest_cached(
+    league: str, min_train_matches: int | None, step_matches: int | None
+) -> tuple[pd.DataFrame, dict]:
+    """Run (or reuse the cached) walk-forward backtest; return (result_df, payload).
+
+    Used by both /api/backtest and /api/research so the expensive computation
+    runs once per (league, window, data-version) key.
+    """
+    import importlib
+
+    bt = importlib.import_module("backtest")
+    cfg = _cfg()
+    df = _load_cached(league, cfg.data.data_dir)
+    xg_df = _load_xg_cached(league)
+
+    min_train = min_train_matches or cfg.backtest.min_train_matches
+    step = step_matches or cfg.backtest.step_matches
+
+    cache_key = (league, min_train, step, _data_fingerprint(league))
+    now = time.time()
+    hit = _BT_CACHE.get(cache_key)
+    if hit and now - hit[0] < _BT_CACHE_TTL:
+        return hit[2], hit[1]
+
+    result_df = _compute_backtest(df, xg_df, min_train, step, cfg, bt)
+    if result_df.empty:
+        raise ValueError("Backtest produced no predictions.")
+
+    metrics = _normalize_metrics(bt.evaluate(result_df, with_odds=True))
+
+    # Recent flagged value bets (most interesting for a human reviewer).
+    recent_value_bets = []
+    if not result_df.empty and "B365H" in result_df.columns:
+        from src.market import value_bets
+
+        vb_df = result_df.assign(result=result_df["actual"])
+        mp = result_df[["pred_home_win", "pred_draw", "pred_away_win"]].rename(
+            columns={
+                "pred_home_win": "home_win",
+                "pred_draw": "draw",
+                "pred_away_win": "away_win",
+            }
+        )
+        vb = value_bets(vb_df, mp)
+        if not vb.empty:
+            recent_value_bets = (
+                vb.sort_values("date")
+                .tail(25)[
+                    [
+                        "date",
+                        "home_team",
+                        "away_team",
+                        "market",
+                        "model_prob",
+                        "implied_prob",
+                        "edge",
+                        "odds",
+                        "pnl",
+                    ]
+                ]
+                .assign(
+                    date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
+                    model_prob=lambda d: d["model_prob"].round(3),
+                    implied_prob=lambda d: d["implied_prob"].round(3),
+                    edge=lambda d: d["edge"].round(3),
+                    odds=lambda d: d["odds"].round(2),
+                    pnl=lambda d: d["pnl"].round(2),
+                )
+                .to_dict("records")
+            )
+
+    # Monthly accuracy curve
+    result_df = result_df.sort_values("date")
+    result_df["month"] = result_df["date"].dt.to_period("M").astype(str)
+    monthly_acc = (
+        result_df.groupby("month")
+        .apply(
+            lambda g: float(
+                (
+                    g["pred_home_win"].gt(g["pred_draw"])
+                    & g["pred_home_win"].gt(g["pred_away_win"])
+                ).mean()
+            )
+        )
+        .round(4)
+        .to_dict()
+    )
+
+    payload = {
+        "metrics": metrics,
+        "n_matches": len(result_df),
+        "monthly_accuracy": monthly_acc,
+        "recent_value_bets": recent_value_bets,
+    }
+    _BT_CACHE[cache_key] = (now, payload, result_df)
+    return result_df, payload
 
 
 def _data_fingerprint(league: str) -> tuple[str, str, str]:
@@ -554,105 +662,10 @@ def backtest(
     min_train_matches: int = Query(None, ge=100),
     step_matches: int = Query(None, ge=50),
 ):
-    import importlib
-
-    bt = importlib.import_module("backtest")
-    cfg = _cfg()
     try:
-        df = _load_cached(league, cfg.data.data_dir)
+        _, payload = _get_backtest_cached(league, min_train_matches, step_matches)
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=404, detail=str(e))
-
-    xg_df = _load_xg_cached(league)
-
-    min_train = min_train_matches or cfg.backtest.min_train_matches
-    step = step_matches or cfg.backtest.step_matches
-
-    # Expensive computation — serve cached results within the TTL, invalidated
-    # whenever config or the underlying data changes.
-    cache_key = (league, min_train, step, _data_fingerprint(league))
-    now = time.time()
-    hit = _BT_CACHE.get(cache_key)
-    if hit and now - hit[0] < _BT_CACHE_TTL:
-        return hit[1]
-
-    result_df = bt.walk_forward_backtest(
-        df,
-        min_train_matches=min_train,
-        step_matches=step,
-        cfg=cfg,
-        xg_df=xg_df,
-    )
-    if result_df.empty:
-        raise HTTPException(status_code=422, detail="Backtest produced no predictions.")
-
-    metrics = _normalize_metrics(bt.evaluate(result_df, with_odds=True))
-
-    # Recent flagged value bets (most interesting for a human reviewer).
-    recent_value_bets = []
-    if not result_df.empty and "B365H" in result_df.columns:
-        from src.market import value_bets
-
-        vb_df = result_df.assign(result=result_df["actual"])
-        mp = result_df[["pred_home_win", "pred_draw", "pred_away_win"]].rename(
-            columns={
-                "pred_home_win": "home_win",
-                "pred_draw": "draw",
-                "pred_away_win": "away_win",
-            }
-        )
-        vb = value_bets(vb_df, mp)
-        if not vb.empty:
-            recent_value_bets = (
-                vb.sort_values("date")
-                .tail(25)[
-                    [
-                        "date",
-                        "home_team",
-                        "away_team",
-                        "market",
-                        "model_prob",
-                        "implied_prob",
-                        "edge",
-                        "odds",
-                        "pnl",
-                    ]
-                ]
-                .assign(
-                    date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
-                    model_prob=lambda d: d["model_prob"].round(3),
-                    implied_prob=lambda d: d["implied_prob"].round(3),
-                    edge=lambda d: d["edge"].round(3),
-                    odds=lambda d: d["odds"].round(2),
-                    pnl=lambda d: d["pnl"].round(2),
-                )
-                .to_dict("records")
-            )
-
-    # Monthly accuracy curve
-    result_df = result_df.sort_values("date")
-    result_df["month"] = result_df["date"].dt.to_period("M").astype(str)
-    monthly_acc = (
-        result_df.groupby("month")
-        .apply(
-            lambda g: float(
-                (
-                    g["pred_home_win"].gt(g["pred_draw"])
-                    & g["pred_home_win"].gt(g["pred_away_win"])
-                ).mean()
-            )
-        )
-        .round(4)
-        .to_dict()
-    )
-
-    payload = {
-        "metrics": metrics,
-        "n_matches": len(result_df),
-        "monthly_accuracy": monthly_acc,
-        "recent_value_bets": recent_value_bets,
-    }
-    _BT_CACHE[cache_key] = (now, payload)
     return payload
 
 
@@ -704,6 +717,111 @@ def calibrate(
         "current_brier": None,
         "suggested_brier": round(best_brier, 5),
         "note": "Set 'elo_draw_width' in config.yaml to the suggested value to improve calibration.",
+    }
+
+
+@app.get("/api/research")
+def research(
+    league: str = Query("EPL", regex="^(EPL|LALIGA|SERIEA)$"),
+    min_train_matches: int = Query(None, ge=100),
+    step_matches: int = Query(None, ge=50),
+):
+    """Scientific-context data for the UI: market-only control comparison,
+    statistical power, the walk-forward calibration report, and the
+    pre-registered edge-test verdict."""
+    import scripts.market_control as mc
+    import scripts.power_analysis as pa
+
+    try:
+        result_df, _ = _get_backtest_cached(league, min_train_matches, step_matches)
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    # --- Market-only control: bet the market, no model opinion ---
+    control_rows = []
+    try:
+        control = mc.run_control(result_df)
+        keep = ["label", "n", "total_staked", "roi", "sharpe", "strike"]
+        control_rows = control[keep].fillna("—").to_dict("records")
+        avg_margin = control["avg_margin"].iloc[0]
+        residual_by_line = {
+            k: {
+                "model": round(llm, 4),
+                "line": round(llk, 4),
+                "residual": round(llm - llk, 4),
+            }
+            for k, (llm, llk) in control.attrs["residual_by_line"].items()
+        }
+    except Exception as e:
+        log.warning("research control failed: %s", e)
+        avg_margin, residual_by_line = None, {}
+
+    # --- Statistical power on this sample ---
+    power = {}
+    try:
+        power = pa.analyse(result_df, league)
+    except Exception as e:
+        log.warning("research power failed: %s", e)
+
+    # --- Calibration report (if a tuning run has been saved) ---
+    calibration = []
+    cal_path = Path("reports") / "calibration_quick.csv"
+    if cal_path.exists():
+        try:
+            cal = pd.read_csv(cal_path)
+            cols = [
+                c
+                for c in [
+                    "combo",
+                    "log_loss",
+                    "residual_log_loss",
+                    "edge_corr",
+                    "kelly_sharpe",
+                    "seconds",
+                ]
+                if c in cal.columns
+            ]
+            calibration = (
+                cal.sort_values(
+                    "residual_log_loss"
+                    if "residual_log_loss" in cal.columns
+                    else "log_loss"
+                )
+                .head(6)[cols]
+                .fillna("—")
+                .to_dict("records")
+            )
+        except Exception as e:
+            log.warning("research calibration read failed: %s", e)
+
+    # --- Pre-registered protocol + holdout verdict ---
+    protocol = {
+        "primary_threshold": "residual log loss <= -0.005",
+        "secondary_thresholds": "edge correlation > +0.02 AND value-bet ROI > 0",
+        "doc": "docs/edge_test_preregistration.md",
+    }
+    holdout_result = None
+    hr_path = Path("reports") / "holdout_result.json"
+    if hr_path.exists():
+        try:
+            import json
+
+            holdout_result = json.loads(hr_path.read_text())
+        except Exception as e:
+            log.warning("research holdout read failed: %s", e)
+
+    return {
+        "league": league,
+        "n_matches": len(result_df),
+        "control": {
+            "avg_margin": avg_margin,
+            "rows": control_rows,
+            "residual_by_line": residual_by_line,
+        },
+        "power": power,
+        "calibration": calibration,
+        "protocol": protocol,
+        "holdout_result": holdout_result,
     }
 
 

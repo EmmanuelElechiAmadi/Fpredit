@@ -69,6 +69,7 @@ const VIEWS = {
   teams: { title: "Team Intelligence", sub: "Ratings, strength & form per team" },
   predictor: { title: "Match Predictor", sub: "H/D/A, expected goals & score matrix" },
   backtest: { title: "Backtest Lab", sub: "Walk-forward validation vs baselines" },
+  research: { title: "Research", sub: "Edge test verdict, power & control analysis" },
   compare: { title: "League Compare", sub: "Model quality across leagues" },
 };
 
@@ -90,6 +91,7 @@ function switchView(view) {
   if (view === "teams") loadTeams();
   if (view === "predictor") loadTeams();
   if (view === "backtest") loadBacktest();
+  if (view === "research") loadResearch();
   if (view === "compare") loadCompare();
 }
 
@@ -655,6 +657,86 @@ function renderValueBetsTable(bets) {
         <tbody>${rows}</tbody>
       </table>
     </div>`;
+}
+
+/* ---------- Research ---------- */
+
+async function loadResearch() {
+  await withLoading(async () => {
+    const d = await api(`/research?league=${state.league}`);
+    const h = d.holdout_result || {};
+    const ctl = d.control || {};
+    const pw = d.power || {};
+
+    // Verdict stat cards
+    const resStats = [
+      { label: "Holdout season", value: h.season || "—", icon: "📅" },
+      { label: "Holdout matches", value: h.n_matches ?? "—", icon: "🎯" },
+      { label: "Residual log loss", value: h.residual_log_loss == null ? "—" : (h.residual_log_loss >= 0 ? "+" : "") + h.residual_log_loss.toFixed(4), icon: "📉", tone: h.residual_log_loss != null && h.residual_log_loss < 0 ? "good" : "bad" },
+      { label: "Edge correlation", value: h.edge_corr == null ? "—" : (h.edge_corr >= 0 ? "+" : "") + h.edge_corr.toFixed(3), icon: "📈", tone: h.edge_corr != null && h.edge_corr > 0.02 ? "good" : "bad" },
+      { label: "Value-bet ROI", value: h.value_bet_roi == null ? "—" : fmtPct(h.value_bet_roi), icon: "💰", tone: h.value_bet_roi != null && h.value_bet_roi > 0 ? "good" : "bad" },
+      { label: "Verdict", value: h.verdict || "—", icon: h.verdict === "NULL" ? "🧪" : "✅" },
+    ];
+    $("#resStats").innerHTML = resStats
+      .map(
+        (s) =>
+          `<div class="stat-card ${s.tone || ""}"><div class="stat-icon">${s.icon}</div><div class="stat-value">${s.value}</div><div class="stat-label">${s.label}</div></div>`
+      )
+      .join("");
+
+    // Pre-registered holdout panel
+    $("#holdoutPanel").innerHTML = h.verdict
+      ? `<div class="market-grid">
+          <div><span class="muted">Protocol</span><b>${d.protocol.doc || "docs/edge_test_preregistration.md"}</b></div>
+          <div><span class="muted">Primary bar</span><b>${d.protocol.primary_threshold || "—"}</b></div>
+          <div><span class="muted">Secondary bars</span><b>${d.protocol.secondary_thresholds || "—"}</b></div>
+          <div><span class="muted">Detail</span><b>${h.verdict_detail || "—"}</b></div>
+        </div>
+        <p class="muted small">Run: backtest.py --league ${d.league} --xg-dir data/xg --holdout-seasons 1</p>`
+      : `<p class="muted">No pre-registered holdout result recorded yet (run with --holdout-seasons 1).</p>`;
+
+    // Market-only control table
+    const cRows = (ctl.rows || [])
+      .map(
+        (r) =>
+          `<tr><td class="team-cell">${r.label}</td><td>${r.n}</td><td>${fmtPct(r.roi)}</td><td>${fmtNum(r.sharpe, 2)}</td><td>${fmtPct(r.strike)}</td></tr>`
+      )
+      .join("");
+    const residLines = Object.entries(ctl.residual_by_line || {})
+      .map(([k, v]) => `<div class="muted small">${k}: ${v.residual >= 0 ? "+" : ""}${v.residual.toFixed(4)}</div>`)
+      .join("");
+    $("#controlPanel").innerHTML =
+      `<table class="table"><thead><tr><th>Strategy</th><th>n</th><th>ROI</th><th>Sharpe</th><th>Strike</th></tr></thead><tbody>${cRows}</tbody></table>
+       <p class="muted small">Avg bookmaker margin: <b>${fmtPct(ctl.avg_margin)}</b>. A control that loses ~the margin means the model's worse result is genuine.</p>
+       ${residLines}`;
+
+    // Statistical power panel
+    const powerItems = [
+      { k: "Per-match residual SD", v: fmtNum(pw.per_match_sd, 4) },
+      { k: "Min detectable edge (this sample)", v: pw.min_detectable_edge_1y == null ? "—" : fmtPct(pw.min_detectable_edge_1y) },
+      { k: "OOS matches for a 1% edge", v: fmtNum(pw.n_for_1pct_edge, 0) },
+      { k: "OOS matches for a 2% edge", v: fmtNum(pw.n_for_2pct_edge, 0) },
+      { k: "OOS matches for a 3% edge", v: fmtNum(pw.n_for_3pct_edge, 0) },
+      { k: "Edge correlation (tuning window)", v: pw.edge_corr == null ? "—" : (pw.edge_corr >= 0 ? "+" : "") + pw.edge_corr.toFixed(4) },
+      { k: "OOS matches to detect corr 0.03", v: fmtNum(pw.n_for_corr_0.03, 0) },
+    ];
+    $("#powerPanel").innerHTML =
+      `<div class="market-grid">` +
+      powerItems.map((s) => `<div><span class="muted">${s.k}</span><b>${s.v}</b></div>`).join("") +
+      `</div><p class="muted small">One-sided alpha 0.05, power 0.80. If required n exceeds what you can gather, a null is 'insufficient power for a small edge', not 'no edge'.</p>`;
+
+    // Calibration report table
+    const calRows = (d.calibration || [])
+      .map(
+        (r) =>
+          `<tr><td class="team-cell">${r.combo}</td><td>${fmtNum(r.log_loss, 4)}</td><td>${r.residual_log_loss == null ? "—" : (r.residual_log_loss >= 0 ? "+" : "") + r.residual_log_loss.toFixed(4)}</td><td>${r.edge_corr == null ? "—" : fmtNum(r.edge_corr, 3)}</td><td>${fmtNum(r.kelly_sharpe, 2)}</td></tr>`
+      )
+      .join("");
+    $("#calTable").innerHTML =
+      d.calibration && d.calibration.length
+        ? `<thead><tr><th>Combo</th><th>Log loss</th><th>Residual</th><th>Edge corr</th><th>Sharpe</th></tr></thead><tbody>${calRows}</tbody>`
+        : `<tbody><tr><td class="muted">Run scripts/calibrate_model.py to populate.</td></tr></tbody>`;
+  });
 }
 
 /* ---------- League Compare ---------- */

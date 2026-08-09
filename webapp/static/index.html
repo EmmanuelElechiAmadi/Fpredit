@@ -25,6 +25,7 @@
       <button class="nav-item" data-view="teams"><span>🧠</span> Team Intelligence</button>
       <button class="nav-item" data-view="predictor"><span>🎯</span> Match Predictor</button>
       <button class="nav-item" data-view="backtest"><span>🔄</span> Backtest Lab</button>
+      <button class="nav-item" data-view="research"><span>🔬</span> Research</button>
       <button class="nav-item" data-view="compare"><span>🏆</span> League Compare</button>
     </nav>
     <div class="sidebar-foot">
@@ -162,6 +163,30 @@
       <div class="card">
         <h3>Market & Value Bets</h3>
         <div id="marketPanel" class="market-panel"></div>
+      </div>
+    </div>
+
+    <div id="view-research" class="view">
+      <div class="stat-cards" id="resStats"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Pre-Registered Edge Test <span class="card-sub">2025-26 holdout verdict</span></h3>
+          <div id="holdoutPanel" class="holdout-panel"></div>
+        </div>
+        <div class="card">
+          <h3>Market-Only Control <span class="card-sub">bet the market, no model</span></h3>
+          <div id="controlPanel"></div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Statistical Power <span class="card-sub">residual log-loss variance</span></h3>
+          <div id="powerPanel" class="power-panel"></div>
+        </div>
+        <div class="card">
+          <h3>Calibration Report <span class="card-sub">walk-forward tuning</span></h3>
+          <div class="table-wrap"><table id="calTable" class="table"></table></div>
+        </div>
       </div>
     </div>
 
