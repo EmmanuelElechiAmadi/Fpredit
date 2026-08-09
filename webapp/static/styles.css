@@ -891,6 +891,28 @@ body {
 
 /* ---------- Loading overlay ---------- */
 
+.error-banner {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(127, 29, 29, 0.95);
+  border: 1px solid rgba(248, 113, 113, 0.5);
+  color: #fecaca;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 1000;
+  display: none;
+  max-width: 80vw;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.error-banner.visible {
+  display: block;
+}
+
 .loading-overlay {
   position: fixed;
   inset: 0;

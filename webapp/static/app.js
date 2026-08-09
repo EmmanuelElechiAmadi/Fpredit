@@ -87,6 +87,17 @@ function switchView(view) {
   $("#pageTitle").textContent = VIEWS[view].title;
   $("#pageSubtitle").textContent = VIEWS[view].sub;
 
+  // Per-view loading message so a slow first load never looks like a hang.
+  const msgs = {
+    teams: "Fitting model & computing ratings… (first load ~15s)",
+    predictor: "Fitting model… (first load ~15s)",
+    backtest: "Computing walk-forward backtest… (first load ~1-2 min)",
+    research: "Computing control, power & holdout verdict…",
+    compare: "Running backtests across all leagues… (first load ~2-5 min)",
+  };
+  const t = $("#loadingText");
+  if (t) t.textContent = msgs[view] || "Loading intelligence…";
+
   if (view === "dashboard") loadDashboard();
   if (view === "teams") loadTeams();
   if (view === "predictor") loadTeams();
@@ -107,11 +118,13 @@ $("#refreshBtn").addEventListener("click", () => {
   switchView(activeView.dataset.view);
 });
 
-/* ---------- Loading overlay ---------- */
+/* ---------- Loading overlay & errors ---------- */
 
 let loadingCount = 0;
-function showLoading() {
+function showLoading(msg) {
   loadingCount++;
+  const t = $("#loadingText");
+  if (t && msg) t.textContent = msg;
   $("#loadingOverlay").classList.add("visible");
 }
 function hideLoading() {
@@ -119,10 +132,25 @@ function hideLoading() {
   if (loadingCount === 0) $("#loadingOverlay").classList.remove("visible");
 }
 
-async function withLoading(fn) {
-  showLoading();
+let errorDismissed = false;
+function showError(msg) {
+  const el = $("#errorBanner");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add("visible");
+  errorDismissed = false;
+}
+
+async function withLoading(fn, msg) {
+  showLoading(msg);
   try {
     return await fn();
+  } catch (err) {
+    // Never leave the page blank: surface the failure instead.
+    if (!errorDismissed) {
+      showError(`⚠️ ${err && err.message ? err.message : err}`);
+    }
+    console.error(err);
   } finally {
     hideLoading();
   }

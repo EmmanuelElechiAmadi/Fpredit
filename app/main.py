@@ -45,6 +45,10 @@ _BT_CACHE_TTL = 60 * 30  # backtests are expensive; hold for 30 minutes
 # (league, min_train, step, invalidation_hash) -> (computed_at, payload, result_df)
 _BT_CACHE: dict[tuple, tuple[float, dict, pd.DataFrame]] = {}
 
+# Fitted ensemble per (league, data-version) — fitting takes ~15s per league
+# and the old code refit on every /api/teams and /api/predict request.
+_MODEL_CACHE: dict[tuple, object] = {}
+
 app = FastAPI(title="Football Predictor API", version="1.0.0")
 
 app.add_middleware(
@@ -153,6 +157,55 @@ def _load_xg_cached(league: str, xg_dir: str = "data/xg") -> pd.DataFrame | None
 def _xg_available(league: str) -> bool:
     xg = _load_xg_cached(league)
     return xg is not None and not xg.empty
+
+
+def _get_model_cached(league: str):
+    """Fit the ensemble once per (league, data-version) and reuse it.
+
+    Previously every /api/teams and /api/predict request refit the model on the
+    full league history (~15s each). Keying on the data fingerprint (config +
+    raw data + xG mtimes) keeps the cache valid across data updates.
+    """
+    cfg = _cfg()
+    key = (league, _data_fingerprint(league))
+    cached = _MODEL_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    df = _load_cached(league, cfg.data.data_dir)
+    xg_df = _load_xg_cached(league)
+    if xg_df is not None and not xg_df.empty:
+        df = join_xg(df, xg_df)
+    model = build_ensemble(cfg)
+    model.fit(df.sort_values("date"))
+    _MODEL_CACHE[key] = model
+    return model
+
+
+def _warm_caches() -> None:
+    """Background warm-up so the first user interaction is fast, not a 15s+ spinner."""
+    import threading
+
+    def _warm() -> None:
+        for league in LEAGUE_CODES:
+            try:
+                _get_model_cached(league)
+                log.info("Warmed model cache for %s", league)
+            except Exception as e:  # pragma: no cover - defensive
+                log.warning("Warm-up failed for %s: %s", league, e)
+        try:
+            # Pre-compute the default Backtest Lab result (EPL) too.
+            _get_backtest_cached("EPL", None, None)
+            log.info("Warmed default backtest for EPL")
+        except Exception as e:  # pragma: no cover - defensive
+            log.warning("Backtest warm-up failed: %s", e)
+
+    threading.Thread(target=_warm, daemon=True, name="cache-warm").start()
+
+
+@app.on_event("startup")
+def _startup_warm() -> None:
+    _warm_caches()
 
 
 def _compute_backtest(df, xg_df, min_train, step, cfg, bt) -> pd.DataFrame:
@@ -491,12 +544,7 @@ def teams(
     except (FileNotFoundError, ValueError) as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    xg_df = _load_xg_cached(league)
-    if xg_df is not None and not xg_df.empty:
-        df = join_xg(df, xg_df)
-
-    model = build_ensemble(cfg)
-    model.fit(df.sort_values("date"))
+    model = _get_model_cached(league)
 
     # Elo ratings snapshot
     elo = model.elo
@@ -571,8 +619,7 @@ def predict(
     if xg_df is not None and not xg_df.empty:
         df = join_xg(df, xg_df)
 
-    model = build_ensemble(cfg)
-    model.fit(df.sort_values("date"))
+    model = _get_model_cached(league)
     try:
         p = model.predict(home, away)
     except ValueError as e:
