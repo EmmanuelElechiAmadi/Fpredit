@@ -100,6 +100,9 @@ python backtest.py --demo
 # Web app (served at http://localhost:8000):
 make web            # or: uvicorn app.main:app --reload
 
+# Deploy to Railway / Render / Hugging Face Spaces (Dockerfile included):
+#   see docs/DEPLOY.md
+
 # With real data:
 python predict.py "Arsenal" "Chelsea" --league EPL --data-dir data/raw
 python backtest.py --league EPL --data-dir data/raw
