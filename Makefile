@@ -1,4 +1,4 @@
-.PHONY: install test clean lint typecheck format download-data calibrate-elo demo predict backtest report
+.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data calibrate-elo demo predict backtest backtest-save report
 
 # ── Installation ──────────────────────────────────────────────────────────────
 
@@ -29,11 +29,15 @@ test-coverage:
 # ── Linting & Formatting ──────────────────────────────────────────────────────
 
 lint:
-	ruff check src/ tests/ scripts/
+	pre-commit run ruff --all-files
 
 format:
-	black src/ tests/ scripts/
-	isort src/ tests/ scripts/
+	pre-commit run black --all-files
+	pre-commit run isort --all-files
+
+format-check:
+	pre-commit run black --all-files
+	pre-commit run isort --all-files
 
 typecheck:
 	mypy src/ --ignore-missing-imports
@@ -61,6 +65,9 @@ backtest:
 
 backtest-save:
 	python backtest.py --demo --output backtest_results.csv
+
+report:
+	python3 scripts/report.py --league EPL
 
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
