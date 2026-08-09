@@ -25,7 +25,14 @@ def _source_hash() -> str:
     return hasher.hexdigest()[:16]
 
 
-def get_model(league: str, data_dir: str, demo: bool, cache_dir="models", cfg=None):
+def get_model(
+    league: str,
+    data_dir: str,
+    demo: bool,
+    cache_dir="models",
+    cfg=None,
+    xg_df=None,
+):
     cache_path = Path(cache_dir) / f"{league}_{_source_hash()}.pkl"
 
     # Clean up stale cache files for this league (old hash versions)
@@ -42,7 +49,7 @@ def get_model(league: str, data_dir: str, demo: bool, cache_dir="models", cfg=No
     model = build_ensemble(cfg)
     with warnings.catch_warnings():
         warnings.simplefilter("always")
-        model.fit(df)
+        model.fit(df, xg_df=xg_df)
 
     if not demo:
         cache_path.parent.mkdir(exist_ok=True)
@@ -60,6 +67,20 @@ def main():
     ap.add_argument("--league", default="EPL", choices=["EPL", "LALIGA", "SERIEA"])
     ap.add_argument("--data-dir", default="data/raw")
     ap.add_argument(
+        "--xg-dir",
+        default=None,
+        help="Directory of cached Understat xG CSVs (data/xg) to enable xG features.",
+    )
+    ap.add_argument(
+        "--odds",
+        nargs=3,
+        type=float,
+        metavar=("HOME_ODDS", "DRAW_ODDS", "AWAY_ODDS"),
+        default=None,
+        help="Optional decimal closing odds, e.g. --odds 2.1 3.4 3.6 (enables "
+        "the market-residual layer for this prediction).",
+    )
+    ap.add_argument(
         "--demo",
         action="store_true",
         help="Use synthetic data (no CSV download needed)",
@@ -74,8 +95,16 @@ def main():
         ap.error("Provide home and away team names, or use --demo for a sample run")
 
     cfg = load_config()
-    model = get_model(args.league, args.data_dir, args.demo, cfg=cfg)
-    result = model.predict(args.home, args.away)
+    xg_df = None
+    if args.xg_dir:
+        from src.xg_loader import load_league_xg
+
+        xg_df = load_league_xg(args.xg_dir, args.league)
+        print(f"Loaded xG for {args.league} ({len(xg_df)} matches)")
+    model = get_model(args.league, args.data_dir, args.demo, cfg=cfg, xg_df=xg_df)
+    result = model.predict(
+        args.home, args.away, market_odds=tuple(args.odds) if args.odds else None
+    )
 
     print(f"\n{args.home} vs {args.away} ({args.league})")
     print("-" * 50)
@@ -96,6 +125,18 @@ def main():
     print(
         f"(component breakdown - Elo H/D/A:          {[f'{x:.1%}' for x in result['component_probs']['elo']]})"
     )
+    print(
+        f"(component breakdown - Dynamic H/D/A:      {[f'{x:.1%}' for x in result['component_probs']['dynamic']]})"
+    )
+    if "xg" in result["component_probs"]:
+        print(
+            f"(component breakdown - xG H/D/A:          {[f'{x:.1%}' for x in result['component_probs']['xg']]})"
+        )
+    if "market_home" in model.feature_cols:
+        print(
+            "\nMarket-residual layer active (model was trained with market features; "
+            "pass --odds to supply the closing line for this fixture)"
+        )
 
 
 if __name__ == "__main__":

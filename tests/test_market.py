@@ -67,7 +67,12 @@ class TestAddImpliedProbabilities:
 
     def test_nan_when_no_odds(self):
         df = pd.DataFrame(
-            {"home_team": ["A"], "away_team": ["B"], "home_goals": [1], "away_goals": [0]}
+            {
+                "home_team": ["A"],
+                "away_team": ["B"],
+                "home_goals": [1],
+                "away_goals": [0],
+            }
         )
         out = add_implied_probabilities(df)
         assert out["implied_home"].isna().all()
@@ -82,7 +87,13 @@ class TestAddImpliedProbabilities:
         out = add_implied_probabilities(df)
         # implied_home should be based on BbAvH (larger odds → smaller prob)
         assert out["implied_home"].iloc[0] == pytest.approx(
-            1 / df["BbAvH"].iloc[0] / (1 / df["BbAvH"].iloc[0] + 1 / df["BbAvD"].iloc[0] + 1 / df["BbAvA"].iloc[0]),
+            1
+            / df["BbAvH"].iloc[0]
+            / (
+                1 / df["BbAvH"].iloc[0]
+                + 1 / df["BbAvD"].iloc[0]
+                + 1 / df["BbAvA"].iloc[0]
+            ),
             abs=1e-6,
         )
 
@@ -159,9 +170,16 @@ class TestValueBets:
 
     def test_empty_when_no_odds(self):
         df = pd.DataFrame(
-            {"date": ["2024-01-01"], "home_team": ["A"], "away_team": ["B"], "result": ["H"]}
+            {
+                "date": ["2024-01-01"],
+                "home_team": ["A"],
+                "away_team": ["B"],
+                "result": ["H"],
+            }
         )
-        model_probs = pd.DataFrame({"home_win": [0.5], "draw": [0.25], "away_win": [0.25]})
+        model_probs = pd.DataFrame(
+            {"home_win": [0.5], "draw": [0.25], "away_win": [0.25]}
+        )
         bets = value_bets(df, model_probs)
         assert bets.empty
         assert "pnl" in bets.columns
@@ -201,7 +219,12 @@ class TestMarketComparison:
 
     def test_returns_empty_when_no_odds(self):
         df = pd.DataFrame(
-            {"date": ["2024-01-01"], "home_team": ["A"], "away_team": ["B"], "result": ["H"]}
+            {
+                "date": ["2024-01-01"],
+                "home_team": ["A"],
+                "away_team": ["B"],
+                "result": ["H"],
+            }
         )
         probs = pd.DataFrame({"home_win": [0.5], "draw": [0.25], "away_win": [0.25]})
         res = market_comparison(df, probs)

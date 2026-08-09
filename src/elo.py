@@ -11,6 +11,7 @@ let it be recalibrated from data).
 """
 
 from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass
@@ -75,7 +76,9 @@ class EloEngine:
                 m["away_goals"],
             )
 
-    def win_draw_loss_prob(self, home: str, away: str, draw_width: float = None):
+    def win_draw_loss_prob(
+        self, home: str, away: str, draw_width: Optional[float] = None
+    ):
         """
         Elo alone only gives an expected SCORE, not three-way probabilities.
         We convert using an empirically-reasonable logistic split: the draw probability

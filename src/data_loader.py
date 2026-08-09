@@ -44,7 +44,22 @@ _COLUMN_ALIASES = {
 # Optional betting-odds columns (decimal odds). Not all seasons have all of them;
 # whichever exist are kept so the market-comparison layer can use them.
 # B365* = Bet365 closing odds, BbAv* = BetBrain average closing odds.
-ODDS_COLUMNS = ["B365H", "B365D", "B365A", "BbAvH", "BbAvD", "BbAvA"]
+# PH/PD/PA and PSH/PSD/PSA are Pinnacle opening/closing odds — when present they
+# enable opening->closing line-movement features.
+ODDS_COLUMNS = [
+    "B365H",
+    "B365D",
+    "B365A",
+    "BbAvH",
+    "BbAvD",
+    "BbAvA",
+    "PH",
+    "PD",
+    "PA",
+    "PSH",
+    "PSD",
+    "PSA",
+]
 
 REQUIRED_COLUMNS = {
     "date",

@@ -211,3 +211,88 @@ class TestDixonColes:
         dc.fit(balanced_matches)
         p = dc.match_probabilities("A", "B")
         assert p["home_win"] > p["away_win"]
+
+
+class TestShrinkage:
+    def test_shrinkage_pulls_ratings_toward_zero(self):
+        """With very little data, ridge shrinkage should pull a team's rating
+        closer to the league mean (0) than the unregularized fit."""
+        base = datetime(2024, 1, 1)
+        # Team A plays 8 matches and dominates; Team B plays only 1 match
+        matches = [
+            {
+                "date": base + timedelta(days=i * 7),
+                "home_team": "A",
+                "away_team": "B",
+                "home_goals": 4,
+                "away_goals": 0,
+            }
+            for i in range(8)
+        ]
+        dc_full = DixonColes(xi=0.01, shrinkage=0.0)
+        dc_full.fit(matches)
+        dc_shrunk = DixonColes(xi=0.01, shrinkage=2.0)
+        dc_shrunk.fit(matches)
+        # The 1-match team's rating is strongly shrunk toward 0
+        assert abs(dc_shrunk.attack["B"]) < abs(dc_full.attack["B"])
+        assert abs(dc_shrunk.defense["B"]) < abs(dc_full.defense["B"])
+
+    def test_zero_shrinkage_matches_classical(self):
+        base = datetime(2024, 1, 1)
+        matches = [
+            {
+                "date": base + timedelta(days=i * 7),
+                "home_team": "A",
+                "away_team": "B",
+                "home_goals": 2,
+                "away_goals": 1,
+            }
+            for i in range(6)
+        ]
+        dc_a = DixonColes(xi=0.01, shrinkage=0.0).fit(matches)
+        dc_b = DixonColes(xi=0.01).fit(matches)  # default = no shrinkage
+        assert dc_a.attack["A"] == pytest.approx(dc_b.attack["A"], abs=1e-6)
+
+
+class TestXGTarget:
+    def test_fit_xg_valid(self):
+        """Fitting on continuous xG values should not crash and must produce
+        valid probabilities (unlike a Poisson pmf, which can't score xG)."""
+        base = datetime(2024, 1, 1)
+        matches = [
+            {
+                "date": base + timedelta(days=i * 7),
+                "home_team": "A",
+                "away_team": "B",
+                "home_goals": 2,
+                "away_goals": 1,
+                "home_xg": 2.1,
+                "away_xg": 0.8,
+            }
+            for i in range(6)
+        ]
+        dc = DixonColes(xi=0.01)
+        dc.fit(matches, target="xg")
+        p = dc.match_probabilities("A", "B")
+        assert p["home_win"] + p["draw"] + p["away_win"] == pytest.approx(1.0, abs=1e-6)
+        assert dc.expected_goals("A", "B")[0] > 0
+        assert dc.expected_goals("A", "B")[1] > 0
+
+    def test_requires_xg_columns(self):
+        base = datetime(2024, 1, 1)
+        matches = [
+            {
+                "date": base + timedelta(days=i * 7),
+                "home_team": "A",
+                "away_team": "B",
+                "home_goals": 2,
+                "away_goals": 1,
+            }
+            for i in range(4)
+        ]
+        with pytest.raises(KeyError):
+            DixonColes().fit(matches, target="xg")
+
+    def test_invalid_target_raises(self):
+        with pytest.raises(ValueError):
+            DixonColes().fit([], target="nope")

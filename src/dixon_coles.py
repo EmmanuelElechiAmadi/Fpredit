@@ -35,11 +35,19 @@ def _tau(x, y, lam, mu, rho):
 
 
 class DixonColes:
-    def __init__(self, xi: float = 0.0018):
+    def __init__(self, xi: float = 0.0018, shrinkage: float = 0.0):
         """xi: time-decay rate. 0.0018/day ~= results from 1 year ago carry ~55% weight,
         2 years ago ~30%. Tune via cross-validation; higher xi = more reactive to recent form.
+
+        shrinkage: hierarchical partial-pooling proxy. Adds a ridge penalty of
+        shrinkage * (attack^2 + defense^2) to the negative log-likelihood, pulling
+        each team's ratings toward the league mean. This is the standard fix for
+        small-sample teams (newly promoted, mid-season replacements): their ratings
+        shrink toward average until enough evidence accumulates. 0 keeps the
+        classical unregularized fit.
         """
         self.xi = xi
+        self.shrinkage = shrinkage
         self.teams: list[str] = []
         self.attack: dict[str, float] = {}
         self.defense: dict[str, float] = {}
@@ -51,8 +59,16 @@ class DixonColes:
         days = np.clip(days, 0, None)
         return np.exp(-self.xi * days)
 
-    def fit(self, matches, ref_date=None):
-        """matches: list of dicts with date, home_team, away_team, home_goals, away_goals"""
+    def fit(self, matches, ref_date=None, target: str = "goals"):
+        """matches: list of dicts with date, home_team, away_team, home_goals, away_goals.
+
+        target='goals' fits the classical Poisson likelihood. target='xg' instead
+        fits a log-space Gaussian objective on home_xg/away_xg — xG is a continuous
+        estimate of the goal rate, so the Poisson pmf cannot score it directly and a
+        log-normal objective is the natural fit.
+        """
+        if target not in ("goals", "xg"):
+            raise ValueError("target must be 'goals' or 'xg'")
         self.teams = sorted(
             set([m["home_team"] for m in matches] + [m["away_team"] for m in matches])
         )
@@ -62,8 +78,12 @@ class DixonColes:
 
         home_idx = np.array([idx[m["home_team"]] for m in matches])
         away_idx = np.array([idx[m["away_team"]] for m in matches])
-        hg = np.array([m["home_goals"] for m in matches])
-        ag = np.array([m["away_goals"] for m in matches])
+        if target == "goals":
+            hg = np.array([m["home_goals"] for m in matches])
+            ag = np.array([m["away_goals"] for m in matches])
+        else:
+            hg = np.array([float(m["home_xg"]) for m in matches])
+            ag = np.array([float(m["away_xg"]) for m in matches])
         dates = [m["date"] for m in matches]
         w = self._weights(dates, ref_date)
 
@@ -87,17 +107,27 @@ class DixonColes:
             if out_mu is not None:
                 out_mu[:] = mu
 
-            ll = poisson.logpmf(hg, lam) + poisson.logpmf(ag, mu)
-            tau_vals = np.array(
-                [
-                    _tau(h, a, lam_i, mu_i, rho)
-                    for h, a, lam_i, mu_i in zip(hg, ag, lam, mu)
-                ]
-            )
-            tau_vals = np.clip(tau_vals, 1e-10, None)
-            ll = ll + np.log(tau_vals)
+            if target == "goals":
+                ll = poisson.logpmf(hg, lam) + poisson.logpmf(ag, mu)
+                tau_vals = np.array(
+                    [
+                        _tau(h, a, lam_i, mu_i, rho)
+                        for h, a, lam_i, mu_i in zip(hg, ag, lam, mu)
+                    ]
+                )
+                tau_vals = np.clip(tau_vals, 1e-10, None)
+                ll = ll + np.log(tau_vals)
+                nll = -np.sum(w * ll)
+            else:
+                # Log-space Gaussian objective for continuous xG observations
+                eps = 1e-6
+                resid_h = (np.log(np.clip(hg, eps, None)) - np.log(lam)) ** 2
+                resid_a = (np.log(np.clip(ag, eps, None)) - np.log(mu)) ** 2
+                nll = 0.5 * np.sum(w * (resid_h + resid_a))
 
-            return -np.sum(w * ll)
+            if self.shrinkage > 0:
+                nll += self.shrinkage * (np.sum(atk**2) + np.sum(dfn**2))
+            return nll
 
         bounds = [(-3, 3)] * n + [(-3, 3)] * n + [(-1, 1)] + [(-0.3, 0.3)]
 

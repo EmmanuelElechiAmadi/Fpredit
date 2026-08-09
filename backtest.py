@@ -23,6 +23,8 @@ Metrics reported:
 Usage: python backtest.py --demo
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 
@@ -32,18 +34,43 @@ from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
 
 from src.config import load_config
 from src.data_loader import generate_synthetic_league, load_league_csvs
-from src.market import add_implied_probabilities, market_comparison, value_bets
+from src.market import market_comparison, value_bets
 from src.model_factory import build_ensemble
+from src.staking import covariance_adjusted_stakes, portfolio_report
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 
 
 def walk_forward_backtest(
-    df: pd.DataFrame, min_train_matches=380, step_matches=190, cfg=None
+    df: pd.DataFrame,
+    min_train_matches=380,
+    step_matches=190,
+    cfg=None,
+    xg_df: pd.DataFrame | None = None,
 ):
+    from src.market import odds_columns_available
+    from src.xg_loader import join_xg
+
     df = df.sort_values("date").reset_index(drop=True)
+    if xg_df is not None and not xg_df.empty:
+        df = join_xg(df, xg_df)
     records = []
+
+    odds_cols = [
+        "B365H",
+        "B365D",
+        "B365A",
+        "BbAvH",
+        "BbAvD",
+        "BbAvA",
+        "PH",
+        "PD",
+        "PA",
+        "PSH",
+        "PSD",
+        "PSA",
+    ]
 
     cutoff = min_train_matches
     while cutoff + step_matches <= len(df):
@@ -51,12 +78,30 @@ def walk_forward_backtest(
         test = df.iloc[cutoff : cutoff + step_matches]
 
         model = build_ensemble(cfg)
-        model.fit(train)
+        model.fit(train, xg_df=None)
 
         for _, row in test.iterrows():
             try:
+                # Pass closing odds to the meta-learner (residual-vs-market)
+                market_odds = None
+                if odds_columns_available(test):
+                    h = row.get("BbAvH")
+                    if pd.isna(h):
+                        h = row.get("B365H")
+                    d = row.get("BbAvD")
+                    if pd.isna(d):
+                        d = row.get("B365D")
+                    a = row.get("BbAvA")
+                    if pd.isna(a):
+                        a = row.get("B365A")
+                    if not (pd.isna(h) or pd.isna(d) or pd.isna(a)):
+                        market_odds = (float(h), float(d), float(a))
+
                 p = model.predict(
-                    row["home_team"], row["away_team"], as_of_date=row["date"]
+                    row["home_team"],
+                    row["away_team"],
+                    as_of_date=row["date"],
+                    market_odds=market_odds,
                 )
                 rec = {
                     "date": row["date"],
@@ -72,14 +117,7 @@ def walk_forward_backtest(
                     "expected_away_goals": p["expected_goals"][1],
                 }
                 # Carry any odds columns through so market comparison is possible.
-                for oc in [
-                    "B365H",
-                    "B365D",
-                    "B365A",
-                    "BbAvH",
-                    "BbAvD",
-                    "BbAvA",
-                ]:
+                for oc in odds_cols:
                     if oc in test.columns:
                         rec[oc] = row.get(oc, np.nan)
                 records.append(rec)
@@ -104,7 +142,7 @@ def walk_forward_backtest(
     return result_df
 
 
-def evaluate(result_df: pd.DataFrame, with_odds: bool = True):
+def evaluate(result_df: pd.DataFrame, with_odds: bool = True, cfg=None):
     """Evaluate backtest predictions.
 
     Parameters
@@ -113,6 +151,9 @@ def evaluate(result_df: pd.DataFrame, with_odds: bool = True):
         Output of walk_forward_backtest (with optional odds columns).
     with_odds : bool
         Also compute market comparison + value bet stats when odds are present.
+    cfg : optional
+        Config namespace used for staking hyperparameters (falls back to
+        sensible defaults when None).
 
     Returns
     -------
@@ -156,9 +197,9 @@ def evaluate(result_df: pd.DataFrame, with_odds: bool = True):
     }
 
     if with_odds:
-        has_odds = all(c in result_df.columns for c in ("BbAvH", "BbAvD", "BbAvA")) or all(
-            c in result_df.columns for c in ("B365H", "B365D", "B365A")
-        )
+        has_odds = all(
+            c in result_df.columns for c in ("BbAvH", "BbAvD", "BbAvA")
+        ) or all(c in result_df.columns for c in ("B365H", "B365D", "B365A"))
         if has_odds:
             model_probs = result_df[prob_cols].rename(
                 columns={
@@ -167,10 +208,41 @@ def evaluate(result_df: pd.DataFrame, with_odds: bool = True):
                     "pred_away_win": "away_win",
                 }
             )
-            market = market_comparison(result_df, model_probs)
-            vb = value_bets(result_df, model_probs)
+            # market_comparison / value_bets expect a `result` column; the
+            # backtest emits `actual`.
+            market_df = result_df.rename(columns={"actual": "result"})
+            market = market_comparison(market_df, model_probs)
+            vb = value_bets(market_df, model_probs)
+            # Residual-vs-market: the model's log loss minus the market's.
+            # Negative = the model adds information beyond the closing line.
+            if (
+                market["log_loss_model"] is not None
+                and market["log_loss_market"] is not None
+            ):
+                market["residual_log_loss"] = (
+                    market["log_loss_model"] - market["log_loss_market"]
+                )
             metrics["market"] = market
+
             if not vb.empty:
+                # Does the model's predicted edge actually predict winning?
+                edge_corr = float(
+                    vb["edge"].corr(vb["stake_ret"].gt(1.0).astype(float))
+                )
+                metrics["edge_corr"] = edge_corr
+
+                # Covariance-adjusted fractional-Kelly staking on the slate
+                stakes = covariance_adjusted_stakes(
+                    vb,
+                    kelly_fraction=cfg.model.kelly_fraction if cfg else 0.25,
+                    max_stake=cfg.model.kelly_max_stake if cfg else 0.10,
+                    corr=cfg.model.kelly_corr if cfg else 0.05,
+                    cov_shrinkage=cfg.model.kelly_cov_shrinkage if cfg else 0.9,
+                )
+                vb = vb.assign(
+                    stake=stakes.values, pnl_staked=stakes.values * vb["pnl"].values
+                )
+                metrics["staking"] = portfolio_report(vb["pnl_staked"], vb["stake"])
                 metrics["value_bets"] = {
                     "n_bets": len(vb),
                     "strike_rate": float(vb["stake_ret"].gt(1.0).mean()),
@@ -178,9 +250,27 @@ def evaluate(result_df: pd.DataFrame, with_odds: bool = True):
                     "roi": float(vb["pnl"].sum() / len(vb)),
                 }
                 print(f"\nMarket comparison ({market['n']} matches with odds):")
-                print(f"  Model Brier {market['brier_model']:.4f} vs market {market['brier_market']:.4f}")
-                print(f"  Model log loss {market['log_loss_model']:.4f} vs market {market['log_loss_market']:.4f}")
-                print(f"  Value bets: {len(vb)} (P&L {vb['pnl'].sum():+.2f} units, ROI {vb['pnl'].sum()/len(vb):+.1%})")
+                print(
+                    f"  Model Brier {market['brier_model']:.4f} vs market {market['brier_market']:.4f}"
+                )
+                print(
+                    f"  Model log loss {market['log_loss_model']:.4f} vs market {market['log_loss_market']:.4f}"
+                )
+                print(
+                    f"  Residual log loss {market.get('residual_log_loss'):+.4f} "
+                    f"(negative = model beats market)"
+                )
+                if metrics.get("edge_corr") is not None:
+                    print(f"  Edge-win correlation: {metrics['edge_corr']:+.3f}")
+                st = metrics["staking"]
+                print(
+                    f"  Value bets: {len(vb)} (P&L {vb['pnl'].sum():+.2f} units, ROI {vb['pnl'].sum()/len(vb):+.1%})"
+                )
+                print(
+                    f"  Kelly staking: {st['n']} bets, {st['total_staked']:.2f} staked, "
+                    f"profit {st['profit_units']:+.3f}, Sharpe {st['sharpe'] if st['sharpe'] is not None else float('nan'):.2f}, "
+                    f"maxDD {st['max_drawdown']:.3f}, CVaR95 {st['cvar95'] if st['cvar95'] is not None else float('nan'):.3f}"
+                )
     return metrics
 
 
@@ -188,7 +278,18 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--league", default="EPL", choices=["EPL", "LALIGA", "SERIEA"])
     ap.add_argument("--data-dir", default="data/raw")
+    ap.add_argument(
+        "--xg-dir",
+        default=None,
+        help="Directory of cached Understat xG CSVs (data/xg). When set, xG "
+        "features are enabled for the backtest.",
+    )
     ap.add_argument("--demo", action="store_true")
+    ap.add_argument(
+        "--with-xg",
+        action="store_true",
+        help="Demo mode: also attach synthetic xG columns (tests the xG path).",
+    )
     ap.add_argument(
         "--output",
         default=None,
@@ -203,11 +304,24 @@ if __name__ == "__main__":
         if args.demo
         else load_league_csvs(args.data_dir, args.league)
     )
+    xg_df = None
+    if args.xg_dir:
+        from src.xg_loader import load_league_xg
+
+        xg_df = load_league_xg(args.xg_dir, args.league)
+        print(f"Loaded xG for {args.league} ({len(xg_df)} matches)")
+    elif args.demo and args.with_xg:
+        from src.xg_loader import generate_synthetic_xg
+
+        xg_df = generate_synthetic_xg(df)
+        print("Demo xG attached (synthetic)")
+
     result_df = walk_forward_backtest(
         df,
         min_train_matches=cfg.backtest.min_train_matches,
         step_matches=cfg.backtest.step_matches,
         cfg=cfg,
+        xg_df=xg_df,
     )
     if result_df.empty:
         print(
@@ -215,7 +329,7 @@ if __name__ == "__main__":
             "or check the data)."
         )
         raise SystemExit(1)
-    metrics = evaluate(result_df)
+    metrics = evaluate(result_df, cfg=cfg)
 
     if args.output:
         result_df.to_csv(args.output, index=False)

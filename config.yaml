@@ -11,6 +11,12 @@ model:
   # Dixon-Coles time decay (xi). 0.0018/day ~= 55% weight after 1 year
   dc_xi: 0.0018
 
+  # Dixon-Coles hierarchical shrinkage toward the league mean (small-sample fix
+  # for newly promoted / newly created teams): adds a ridge penalty of
+  #   dc_shrinkage * (attack^2 + defense^2)
+  # to the negative log-likelihood. 0 disables it (keeps the classical fit).
+  dc_shrinkage: 0.0
+
   # Elo parameters
   elo_k: 20.0               # Update speed; higher = more reactive
   elo_home_advantage: 75.0  # Elo points added to home team
@@ -18,13 +24,38 @@ model:
   elo_goal_diff_multiplier: true
   elo_draw_width: 0.44      # Heuristic; run scripts/calibrate_elo_draw.py for data-driven fit
 
+  # Dynamic state-space (Kalman-filtered) team strength — replaces the
+  # static-window Dixon-Coles fit as the primary Poisson model. Each team's
+  # attack/defense evolves as a latent random walk with process-noise variance
+  # ss_q (per match), filtered with an extended Kalman filter so every rating
+  # uses strictly prior matches (leak-free by construction).
+  ss_q: 0.01                # Random-walk variance per match on goal-log-rate
+  ss_q_xg: 0.005            # Lower process noise when filtering on xG (cleaner obs)
+  ss_prior_var: 0.25        # Initial state variance on team strength
+  ss_obs_var_scale_xg: 0.5  # Measurement-noise scale when observing xG (goals use 1.0)
+
   # Meta-learner (logistic regression)
   meta_max_iter: 2000
   meta_C: 1.0               # Inverse regularization strength
 
+  # Market-residual meta-model: when odds columns are present, the closing
+  # implied probabilities (and opening->closing line movement, if available)
+  # are fed to the meta-learner so it learns only the residual the market has
+  # not priced. Set false to fall back to a pure statistical model.
+  use_market_features: true
+
   # Feature engineering
   form_window: 5            # Rolling matches for form features
   h2h_lookback: 5           # Past meetings for head-to-head feature
+  congestion_days: 8        # "3 matches in N days" congestion window
+  load_days: 14             # Cumulative-load (matches in N days) window
+  position_reset_days: 100  # Standings reset when dates gap exceeds N days (new season)
+
+  # Staking (covariance-adjusted fractional Kelly)
+  kelly_fraction: 0.25      # Fraction of Kelly to stake (conservative)
+  kelly_max_stake: 0.10     # Per-bet cap as a fraction of bankroll
+  kelly_cov_shrinkage: 0.9  # Weight on the structural covariance (vs empirical)
+  kelly_corr: 0.05          # Structural cross-match correlation assumption
 
 data:
   allowed_leagues:

@@ -1,4 +1,4 @@
-.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data calibrate-elo demo predict backtest backtest-save report
+.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data scrape-xg calibrate-elo demo predict predict-xg backtest backtest-xg backtest-save report
 
 # ── Installation ──────────────────────────────────────────────────────────────
 
@@ -47,6 +47,9 @@ typecheck:
 download-data:
 	python3 scripts/download_data.py --all --seasons 5
 
+scrape-xg:
+	python3 scripts/scrape_understat.py --league EPL --seasons 5
+
 # ── Calibration ────────────────────────────────────────────────────────────────
 
 calibrate-elo:
@@ -60,8 +63,14 @@ demo:
 predict:
 	python predict.py --league EPL
 
+predict-xg:
+	python predict.py --league EPL --xg-dir data/xg
+
 backtest:
 	python backtest.py --demo
+
+backtest-xg:
+	python backtest.py --league EPL --xg-dir data/xg
 
 backtest-save:
 	python backtest.py --demo --output backtest_results.csv

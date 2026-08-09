@@ -54,6 +54,8 @@ models/
 *.pkl
 data/raw/**/*.csv
 data/raw/*.csv
+data/xg/**/*.csv
+data/xg/*.csv
 logs/
 *.log
 reports/

@@ -8,26 +8,38 @@ honestly, with a clear edge over the naive baseline.**
 
 ## How it works
 
-Three models are stacked into one ensemble (see the diagram above):
+A stacked ensemble over five families of signal, blended by a logistic
+regression meta-learner:
 
-1. **Dixon-Coles bivariate Poisson** (`src/dixon_coles.py`) — the academic/
-   industry-standard statistical baseline. Gives each team an attack and
-   defense rating, models goals as time-decayed Poisson processes, and
-   corrects for the known under-prediction of low scores (0-0, 1-0, 1-1).
-   Outputs a full scoreline probability matrix, not just W/D/L.
+1. **Dynamic state-space (Kalman-filtered) team strength** (`src/state_space.py`)
+   — each team's attack/defense evolves as a latent random walk (Rue &
+   Salvesen 2000 style) and is filtered after every match. Filtered estimates
+   are **leak-free by construction** (each match's rating uses only prior
+   matches), which also fixes the subtle in-sample leakage a static fit
+   produces when predicting its own data.
+2. **Dixon-Coles bivariate Poisson** (`src/dixon_coles.py`) — the static
+   statistical baseline; still used for the scoreline matrix, expected goals,
+   over/under and BTTS outputs, and as a reported component. Supports ridge
+   shrinkage toward the league mean (`dc_shrinkage`) for small-sample teams
+   (newly promoted / mid-season replacements).
+3. **Elo ratings** (`src/elo.py`) — reacts faster to hot/cold streaks.
+4. **Context features** (`src/features.py`) — rolling form, head-to-head,
+   fixture congestion ("3 in 8 days", cumulative load), league position
+   (dead rubbers / six-pointers), and PageRank transitive strength. Every
+   feature is computed strictly from information available *before* kickoff —
+   no leakage.
+5. **Market-residual layer** (`src/market.py`) — when odds columns are
+   present, the closing implied probabilities (and opening→closing line
+   movement, if available) are fed to the meta-learner, so it can only
+   contribute signal the market has not yet priced. `predict()` accepts
+   `market_odds` to apply this at inference time.
+6. **xG features** (`src/xg_loader.py`) — match-level expected goals scraped
+   from Understat (2014-15 onward), fed to a second dynamic model filtered on
+   the far less noisy xG observation. Falls back to goals-only when absent.
 
-2. **Elo ratings** (`src/elo.py`) — reacts faster to hot/cold streaks than
-   Dixon-Coles, football-adapted (draws, margin-of-victory scaling, home
-   advantage constant).
-
-3. **Rolling form + head-to-head features** (`src/features.py`) — points per
-   game over the last 5 matches, goal differential trend, rest days, H2H
-   record. Every feature is computed strictly from information available
-   *before* kickoff — no leakage.
-
-A logistic regression meta-learner (`src/ensemble.py`) learns how much to
-trust each signal and outputs final Home/Draw/Away probabilities, plus
-expected goals, most likely scoreline, over/under 2.5, and BTTS.
+A covariance-adjusted fractional-Kelly staking layer (`src/staking.py`) sizes
+a slate of bets as a portfolio — with a shrunk structural covariance between
+correlated matches — and reports Sharpe, max drawdown and CVaR.
 
 ## Getting real data (free, no API key)
 
@@ -44,6 +56,13 @@ data/raw/SP1/2022-23.csv
 ...
 ```
 Aim for at least 5-6 seasons per league for the Dixon-Coles fit to be stable.
+
+Match-level xG from **Understat** (2014-15 onward, no API key):
+```
+python scripts/scrape_understat.py --league EPL --seasons 5   # caches data/xg/EPL/*.csv
+python backtest.py --league EPL --xg-dir data/xg              # xG features enabled
+python predict.py "Arsenal" "Chelsea" --xg-dir data/xg
+```
 
 For upcoming *fixtures* (not historical results) and live odds, you'd want
 an API like API-Football or the football-data.org API — those need paid/free
@@ -63,6 +82,9 @@ python backtest.py --demo
 # With real data:
 python predict.py "Arsenal" "Chelsea" --league EPL --data-dir data/raw
 python backtest.py --league EPL --data-dir data/raw
+
+# With market odds for a single fixture (residual-vs-market inference):
+python predict.py "Arsenal" "Chelsea" --odds 2.1 3.4 3.6
 ```
 
 Team names must match football-data.co.uk's spelling exactly (e.g. "Man
@@ -80,31 +102,41 @@ baseline so you can see the actual uplift, not just accuracy (which is a
 misleading metric here: always picking the home team already scores ~45-46%
 in most leagues).
 
-## Where the real edge comes from (next steps)
-
-- **xG data** (understat.com, has free scrapeable pages) instead of just
-  goals — shots quality is a better predictor than realized goals, which are
-  noisy over a single match.
-- **Player-level availability** (injuries/suspensions/rotation) — none of
-  this is captured yet and it's often the single biggest single-match
-  signal a model is missing.
-- **Closing odds as a feature or calibration check** — the market is very
-  efficient; if you have odds columns from football-data.co.uk, comparing
-  your model's implied probability to the market's is the fastest way to
-  tell if you have a real edge or are just reproducing consensus.
-- **Re-fit cadence**: re-run Elo/Dixon-Coles weekly during a season; only
-  promote a new ensemble version if it beats the current one on held-out
-  log loss (see the backtest loop in the diagram above).
+When odds columns are present it also reports:
+- **Residual log loss** (model − market; negative means the model adds
+  information beyond the closing line),
+- **Edge-win correlation** (does the model's predicted edge predict winning?),
+- **Value-bet P&L** and the covariance-adjusted **Kelly staking report**
+  (Sharpe, max drawdown, CVaR).
 
 ## Files
 
 ```
 src/
-  elo.py           Elo rating engine
-  dixon_coles.py   Dixon-Coles Poisson model
-  features.py      rolling form + head-to-head feature engineering
-  ensemble.py      stacks the three into calibrated final probabilities
-  data_loader.py   football-data.co.uk CSV loader + synthetic data generator
-predict.py         CLI: input two teams, get a prediction
-backtest.py        walk-forward evaluation harness
+  state_space.py     dynamic (Kalman-filtered) team strength — primary Poisson model
+  dixon_coles.py     Dixon-Coles Poisson model (static baseline, shrinkage, xG fit)
+  elo.py             Elo rating engine
+  features.py        form + H2H + congestion + league position + PageRank features
+  market.py          implied probabilities, line movement, value bets
+  xg_loader.py       Understat xG scraper + cache + join helper
+  staking.py         covariance-adjusted fractional Kelly + risk metrics
+  ensemble.py        stacks everything into calibrated final probabilities
+  data_loader.py     football-data.co.uk CSV loader + synthetic data generator
+predict.py         CLI: input two teams, get a prediction (--odds, --xg-dir)
+backtest.py        walk-forward evaluation harness (--xg-dir)
+scripts/scrape_understat.py   fetch match-level xG into data/xg/
 ```
+
+## Known limitations / future work
+
+- **Lineup-aware ratings** — the single biggest professional-vs-public gap —
+  are not yet implemented: they need lineup + player-rating data and are a
+  substantial project on their own.
+- **In-play / Hawkes-style momentum models** are deliberately out of scope
+  for the current pre-match pipeline.
+- **Travel distance / European-fixture context**, referee tendencies, weather
+  and manager tenure are recognised signal but need data sources not in the
+  current free pipeline (venue geography, UEFA fixtures, referee lists,
+  weather APIs, coaching changes).
+- xG coverage starts 2014-15; older seasons run goals-only (handled
+  automatically by the fallback).

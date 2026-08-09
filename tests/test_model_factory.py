@@ -5,8 +5,6 @@ so hyperparameters live in one place.
 
 from types import SimpleNamespace
 
-import pytest
-
 from src.ensemble import FootballEnsemble
 from src.model_factory import _ns_or_default, build_ensemble
 
