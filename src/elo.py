@@ -21,6 +21,9 @@ class EloEngine:
     goal_diff_multiplier: bool = (
         True  # scale K by margin of victory (Elo modification common in football)
     )
+    draw_width: float = 0.44  # calibrated via scripts/calibrate_elo_draw.py
+    draw_min: float = 0.12  # lower clamp on draw probability
+    draw_max: float = 0.34  # upper clamp on draw probability
     ratings: dict = field(default_factory=dict)
     history: list = field(
         default_factory=list
@@ -72,7 +75,7 @@ class EloEngine:
                 m["away_goals"],
             )
 
-    def win_draw_loss_prob(self, home: str, away: str, draw_width: float = 0.44):
+    def win_draw_loss_prob(self, home: str, away: str, draw_width: float = None):
         """
         Elo alone only gives an expected SCORE, not three-way probabilities.
         We convert using an empirically-reasonable logistic split: the draw probability
@@ -86,8 +89,9 @@ class EloEngine:
             1.0 + 10 ** (-diff / 400.0)
         )  # win-or-draw tendency
         # draw prob peaks at diff=0 and decays with |diff|
-        p_draw = draw_width * (1.0 - min(abs(diff) / 800.0, 0.9))
-        p_draw = max(0.12, min(p_draw, 0.34))
+        dw = self.draw_width if draw_width is None else draw_width
+        p_draw = dw * (1.0 - min(abs(diff) / 800.0, 0.9))
+        p_draw = max(self.draw_min, min(p_draw, self.draw_max))
         remaining = 1.0 - p_draw
         p_home = remaining * p_home_or_draw_beats_away
         p_away = remaining * (1.0 - p_home_or_draw_beats_away)

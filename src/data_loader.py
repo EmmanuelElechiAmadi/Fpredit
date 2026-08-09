@@ -41,6 +41,11 @@ _COLUMN_ALIASES = {
     "result": ["FTR", "Res", "result", "ft_result", "full_time_result"],
 }
 
+# Optional betting-odds columns (decimal odds). Not all seasons have all of them;
+# whichever exist are kept so the market-comparison layer can use them.
+# B365* = Bet365 closing odds, BbAv* = BetBrain average closing odds.
+ODDS_COLUMNS = ["B365H", "B365D", "B365A", "BbAvH", "BbAvD", "BbAvA"]
+
 REQUIRED_COLUMNS = {
     "date",
     "home_team",
@@ -76,8 +81,11 @@ def _normalize(df: pd.DataFrame) -> Optional[pd.DataFrame]:
 
     df = df.rename(columns=mapping)
 
-    # Keep only canonical columns plus any betting odds columns we might want later
+    # Keep canonical columns plus any betting-odds columns that exist in this season file.
     keep = list(mapping.values())
+    for odds_col in ODDS_COLUMNS:
+        if odds_col in df.columns:
+            keep.append(odds_col)
     keep = [c for c in keep if c in df.columns]
     return df[keep]
 
@@ -97,6 +105,7 @@ def load_league_csvs(raw_dir: str, league: str) -> pd.DataFrame:
     pd.DataFrame
         Standardized data frame with columns:
         date, home_team, away_team, home_goals, away_goals, result, league
+        plus any available closing-odds columns (B365H/D/A, BbAvH/D/A).
     """
     code = LEAGUE_CODES[league]
     folder = Path(raw_dir) / code
@@ -170,6 +179,11 @@ def load_league_csvs(raw_dir: str, league: str) -> pd.DataFrame:
         "Int64"
     )
     out = out.dropna(subset=["home_goals", "away_goals"])
+
+    # Coerce odds columns to float when present
+    for col in ODDS_COLUMNS:
+        if col in out.columns:
+            out[col] = pd.to_numeric(out[col], errors="coerce")
 
     out = out.sort_values("date").reset_index(drop=True)
     out["league"] = league

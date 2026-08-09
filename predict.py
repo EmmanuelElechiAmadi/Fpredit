@@ -10,8 +10,9 @@ import pickle
 import warnings
 from pathlib import Path
 
+from src.config import load_config
 from src.data_loader import generate_synthetic_league, load_league_csvs
-from src.ensemble import FootballEnsemble
+from src.model_factory import build_ensemble
 
 
 def _source_hash() -> str:
@@ -24,7 +25,7 @@ def _source_hash() -> str:
     return hasher.hexdigest()[:16]
 
 
-def get_model(league: str, data_dir: str, demo: bool, cache_dir="models"):
+def get_model(league: str, data_dir: str, demo: bool, cache_dir="models", cfg=None):
     cache_path = Path(cache_dir) / f"{league}_{_source_hash()}.pkl"
 
     # Clean up stale cache files for this league (old hash versions)
@@ -38,7 +39,7 @@ def get_model(league: str, data_dir: str, demo: bool, cache_dir="models"):
             return pickle.load(f)
 
     df = generate_synthetic_league() if demo else load_league_csvs(data_dir, league)
-    model = FootballEnsemble()
+    model = build_ensemble(cfg)
     with warnings.catch_warnings():
         warnings.simplefilter("always")
         model.fit(df)
@@ -72,7 +73,8 @@ def main():
     if not args.home or not args.away:
         ap.error("Provide home and away team names, or use --demo for a sample run")
 
-    model = get_model(args.league, args.data_dir, args.demo)
+    cfg = load_config()
+    model = get_model(args.league, args.data_dir, args.demo, cfg=cfg)
     result = model.predict(args.home, args.away)
 
     print(f"\n{args.home} vs {args.away} ({args.league})")

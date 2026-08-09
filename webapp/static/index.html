@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Football Predictor — Intelligence Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/static/styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">⚽</div>
+      <div>
+        <h1>Footy<span>Intel</span></h1>
+        <p class="brand-sub">AI Prediction Hub</p>
+      </div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="dashboard"><span>📊</span> Dashboard</button>
+      <button class="nav-item" data-view="teams"><span>🧠</span> Team Intelligence</button>
+      <button class="nav-item" data-view="predictor"><span>🎯</span> Match Predictor</button>
+      <button class="nav-item" data-view="backtest"><span>🔄</span> Backtest Lab</button>
+      <button class="nav-item" data-view="compare"><span>🏆</span> League Compare</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="league-picker">
+        <label>League</label>
+        <select id="leagueSelect">
+          <option value="EPL">Premier League</option>
+          <option value="LALIGA">La Liga</option>
+          <option value="SERIEA">Serie A</option>
+        </select>
+      </div>
+      <p class="api-status"><span class="dot"></span><span id="apiStatus">Checking API…</span></p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div>
+        <h2 id="pageTitle">Dashboard</h2>
+        <p id="pageSubtitle" class="subtitle">League overview & model insights</p>
+      </div>
+      <div class="topbar-right">
+        <span id="leagueMeta" class="badge"></span>
+        <span class="refresh-btn" id="refreshBtn" title="Refresh data">⟳</span>
+      </div>
+    </header>
+
+    <div id="view-dashboard" class="view active">
+      <div class="stat-cards" id="dashStats"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Standings <span class="card-sub" id="standingsSeason"></span></h3>
+          <div class="table-wrap"><table id="standingsTable" class="table"></table></div>
+        </div>
+        <div class="card">
+          <h3>Outcome Distribution</h3>
+          <canvas id="outcomeChart" height="220"></canvas>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Goals Per Game (Monthly)</h3>
+          <canvas id="goalsChart" height="220"></canvas>
+        </div>
+        <div class="card">
+          <h3>Team Form (Top 8)</h3>
+          <div id="formGrid" class="form-grid"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Recent Results</h3>
+        <div class="table-wrap"><table id="recentTable" class="table"></table></div>
+      </div>
+    </div>
+
+    <div id="view-teams" class="view">
+      <div class="grid-2">
+        <div class="card">
+          <h3>Elo Ratings</h3>
+          <canvas id="eloChart" height="400"></canvas>
+        </div>
+        <div class="card">
+          <h3>Team Strength (Dixon-Coles)</h3>
+          <div class="table-wrap"><table id="strengthTable" class="table"></table></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-predictor" class="view">
+      <div class="card">
+        <h3>Head-to-Head Predictor</h3>
+        <div class="predict-form">
+          <select id="homeSelect"></select>
+          <span class="vs">vs</span>
+          <select id="awaySelect"></select>
+          <button id="predictBtn" class="btn-primary">Predict ▸</button>
+        </div>
+        <div id="predictResults" class="predict-results" style="display:none">
+          <div class="grid-3">
+            <div class="card inner">
+              <h4>Win Probabilities</h4>
+              <canvas id="probsChart" height="200"></canvas>
+            </div>
+            <div class="card inner">
+              <h4>Expected Goals</h4>
+              <div id="xgBoxes" class="xg-boxes"></div>
+              <div class="mini-stats" id="miniStats"></div>
+            </div>
+            <div class="card inner">
+              <h4>Most Likely Score</h4>
+              <div id="scoreBox" class="score-big"></div>
+              <div id="marketBox" class="market-box"></div>
+            </div>
+          </div>
+          <div class="card inner">
+            <h4>Score Probability Matrix</h4>
+            <canvas id="matrixChart" height="300"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-backtest" class="view">
+      <div class="stat-cards" id="btStats"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Model vs Baseline</h3>
+          <canvas id="btCompareChart" height="260"></canvas>
+        </div>
+        <div class="card">
+          <h3>Monthly Accuracy</h3>
+          <canvas id="btMonthlyChart" height="260"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Market & Value Bets</h3>
+        <div id="marketPanel" class="market-panel"></div>
+      </div>
+    </div>
+
+    <div id="view-compare" class="view">
+      <div class="stat-cards" id="cmpStats"></div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Log Loss by League</h3>
+          <canvas id="cmpLogLoss" height="260"></canvas>
+        </div>
+        <div class="card">
+          <h3>Brier Score by League</h3>
+          <canvas id="cmpBrier" height="260"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Value Bet Performance</h3>
+        <div id="valueBetPanel" class="market-panel"></div>
+      </div>
+    </div>
+  </main>
+</div>
+<div id="loadingOverlay" class="loading-overlay"><div class="spinner"></div><p>Loading intelligence…</p></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

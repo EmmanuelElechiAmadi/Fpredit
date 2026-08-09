@@ -17,6 +17,8 @@ Metrics reported:
     hides whether the probabilities themselves are well-calibrated)
   - Baseline comparison: "always predict home win" and "market-share prior"
     (constant H/D/A rates), so you can see the actual uplift from modeling.
+  - Market comparison (when odds columns are present): Brier/log-loss vs the
+    bookmaker-implied probabilities, plus value-bet P&L.
 
 Usage: python backtest.py --demo
 """
@@ -28,14 +30,18 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, brier_score_loss, log_loss
 
+from src.config import load_config
 from src.data_loader import generate_synthetic_league, load_league_csvs
-from src.ensemble import FootballEnsemble
+from src.market import add_implied_probabilities, market_comparison, value_bets
+from src.model_factory import build_ensemble
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
 
 
-def walk_forward_backtest(df: pd.DataFrame, min_train_matches=380, step_matches=190):
+def walk_forward_backtest(
+    df: pd.DataFrame, min_train_matches=380, step_matches=190, cfg=None
+):
     df = df.sort_values("date").reset_index(drop=True)
     records = []
 
@@ -44,7 +50,7 @@ def walk_forward_backtest(df: pd.DataFrame, min_train_matches=380, step_matches=
         train = df.iloc[:cutoff]
         test = df.iloc[cutoff : cutoff + step_matches]
 
-        model = FootballEnsemble()
+        model = build_ensemble(cfg)
         model.fit(train)
 
         for _, row in test.iterrows():
@@ -52,21 +58,31 @@ def walk_forward_backtest(df: pd.DataFrame, min_train_matches=380, step_matches=
                 p = model.predict(
                     row["home_team"], row["away_team"], as_of_date=row["date"]
                 )
-                records.append(
-                    {
-                        "date": row["date"],
-                        "home_team": row["home_team"],
-                        "away_team": row["away_team"],
-                        "actual": row["result"],
-                        "pred_home_win": p["home_win"],
-                        "pred_draw": p["draw"],
-                        "pred_away_win": p["away_win"],
-                        "pred_over_2_5": p["over_2_5_goals"],
-                        "pred_btts_yes": p["btts_yes"],
-                        "expected_home_goals": p["expected_goals"][0],
-                        "expected_away_goals": p["expected_goals"][1],
-                    }
-                )
+                rec = {
+                    "date": row["date"],
+                    "home_team": row["home_team"],
+                    "away_team": row["away_team"],
+                    "actual": row["result"],
+                    "pred_home_win": p["home_win"],
+                    "pred_draw": p["draw"],
+                    "pred_away_win": p["away_win"],
+                    "pred_over_2_5": p["over_2_5_goals"],
+                    "pred_btts_yes": p["btts_yes"],
+                    "expected_home_goals": p["expected_goals"][0],
+                    "expected_away_goals": p["expected_goals"][1],
+                }
+                # Carry any odds columns through so market comparison is possible.
+                for oc in [
+                    "B365H",
+                    "B365D",
+                    "B365A",
+                    "BbAvH",
+                    "BbAvD",
+                    "BbAvA",
+                ]:
+                    if oc in test.columns:
+                        rec[oc] = row.get(oc, np.nan)
+                records.append(rec)
             except Exception as e:
                 log.warning(
                     "Prediction failed for %s vs %s (%s): %s",
@@ -88,7 +104,20 @@ def walk_forward_backtest(df: pd.DataFrame, min_train_matches=380, step_matches=
     return result_df
 
 
-def evaluate(result_df: pd.DataFrame):
+def evaluate(result_df: pd.DataFrame, with_odds: bool = True):
+    """Evaluate backtest predictions.
+
+    Parameters
+    ----------
+    result_df : pd.DataFrame
+        Output of walk_forward_backtest (with optional odds columns).
+    with_odds : bool
+        Also compute market comparison + value bet stats when odds are present.
+
+    Returns
+    -------
+    dict of metrics (plus 'market' and 'value_bets' sub-dicts when available).
+    """
     label_map = {"H": 0, "D": 1, "A": 2}
     y_true = np.array([label_map[a] for a in result_df["actual"]])
     prob_cols = ["pred_home_win", "pred_draw", "pred_away_win"]
@@ -119,12 +148,40 @@ def evaluate(result_df: pd.DataFrame):
         f"\nModel beats constant-prior baseline: {'YES' if ll < baseline_ll else 'NO -- needs work'}"
     )
 
-    return {
+    metrics = {
         "log_loss": ll,
         "brier": brier,
         "accuracy": acc,
         "baseline_log_loss": baseline_ll,
     }
+
+    if with_odds:
+        has_odds = all(c in result_df.columns for c in ("BbAvH", "BbAvD", "BbAvA")) or all(
+            c in result_df.columns for c in ("B365H", "B365D", "B365A")
+        )
+        if has_odds:
+            model_probs = result_df[prob_cols].rename(
+                columns={
+                    "pred_home_win": "home_win",
+                    "pred_draw": "draw",
+                    "pred_away_win": "away_win",
+                }
+            )
+            market = market_comparison(result_df, model_probs)
+            vb = value_bets(result_df, model_probs)
+            metrics["market"] = market
+            if not vb.empty:
+                metrics["value_bets"] = {
+                    "n_bets": len(vb),
+                    "strike_rate": float(vb["stake_ret"].gt(1.0).mean()),
+                    "profit_units": float(vb["pnl"].sum()),
+                    "roi": float(vb["pnl"].sum() / len(vb)),
+                }
+                print(f"\nMarket comparison ({market['n']} matches with odds):")
+                print(f"  Model Brier {market['brier_model']:.4f} vs market {market['brier_market']:.4f}")
+                print(f"  Model log loss {market['log_loss_model']:.4f} vs market {market['log_loss_market']:.4f}")
+                print(f"  Value bets: {len(vb)} (P&L {vb['pnl'].sum():+.2f} units, ROI {vb['pnl'].sum()/len(vb):+.1%})")
+    return metrics
 
 
 if __name__ == "__main__":
@@ -139,12 +196,19 @@ if __name__ == "__main__":
     )
     args = ap.parse_args()
 
+    cfg = load_config()
+
     df = (
         generate_synthetic_league(n_seasons=4)
         if args.demo
         else load_league_csvs(args.data_dir, args.league)
     )
-    result_df = walk_forward_backtest(df)
+    result_df = walk_forward_backtest(
+        df,
+        min_train_matches=cfg.backtest.min_train_matches,
+        step_matches=cfg.backtest.step_matches,
+        cfg=cfg,
+    )
     if result_df.empty:
         print(
             "No predictions could be made. See warnings above (run with --verbose "

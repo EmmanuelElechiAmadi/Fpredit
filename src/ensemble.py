@@ -22,11 +22,17 @@ from .features import head_to_head, rolling_form
 
 
 class FootballEnsemble:
-    def __init__(self, elo_kwargs=None, dc_kwargs=None):
+    def __init__(
+        self,
+        elo_kwargs=None,
+        dc_kwargs=None,
+        meta_max_iter: int = 2000,
+        meta_C: float = 1.0,
+    ):
         self.elo = EloEngine(**(elo_kwargs or {}))
         self.dc = DixonColes(**(dc_kwargs or {}))
         self.scaler = StandardScaler()
-        self.meta = LogisticRegression(max_iter=2000)
+        self.meta = LogisticRegression(max_iter=meta_max_iter, C=meta_C)
         self.feature_cols = [
             "dc_home",
             "dc_draw",
@@ -93,7 +99,17 @@ class FootballEnsemble:
         self.dc.fit(df.to_dict("records"))
 
         # Elo must be fit chronologically (walk forward) so ratings reflect only past info
-        self.elo = EloEngine()
+        self.elo = EloEngine(
+            **{
+                "k": self.elo.k,
+                "home_advantage": self.elo.home_advantage,
+                "initial_rating": self.elo.initial_rating,
+                "goal_diff_multiplier": self.elo.goal_diff_multiplier,
+                "draw_width": self.elo.draw_width,
+                "draw_min": self.elo.draw_min,
+                "draw_max": self.elo.draw_max,
+            }
+        )
         feat_df = self._build_feature_frame(df, fit_elo=True, fit_dc=False)
 
         feat_df = feat_df.dropna(subset=self.feature_cols)
