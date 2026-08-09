@@ -52,10 +52,10 @@ venv.bak/
 # Project-specific
 models/
 *.pkl
-data/raw/**/*.csv
-data/raw/*.csv
-data/xg/**/*.csv
-data/xg/*.csv
+# Results + xG data is committed (small, ~3MB) so GitHub-based deploys
+# (Railway/Render/HF Spaces) can build the image without re-downloading.
+# data/raw/**/*.csv
+# data/xg/**/*.csv
 logs/
 *.log
 reports/

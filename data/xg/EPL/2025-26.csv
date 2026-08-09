@@ -1,0 +1,381 @@
+date,home_team,away_team,home_goals,away_goals,home_xg,away_xg,result
+2025-08-15,Liverpool,Bournemouth,4,2,2.33007,1.57303,H
+2025-08-16,Aston Villa,Newcastle,0,0,0.318601,1.40098,D
+2025-08-16,Brighton,Fulham,1,1,1.44008,0.902883,D
+2025-08-16,Sunderland,West Ham,3,0,0.724368,0.558948,H
+2025-08-16,Tottenham,Burnley,3,0,1.97858,0.734138,H
+2025-08-16,Wolves,Man City,0,4,0.519436,2.29903,A
+2025-08-17,Chelsea,Crystal Palace,0,0,1.36793,1.03414,D
+2025-08-17,Nott'm Forest,Brentford,3,1,1.7555,1.32516,H
+2025-08-17,Man United,Arsenal,0,1,1.37653,1.3304,A
+2025-08-18,Leeds,Everton,1,0,2.3812,0.674338,H
+2025-08-22,West Ham,Chelsea,1,5,0.978572,3.94997,A
+2025-08-23,Man City,Tottenham,0,2,1.2475,1.28015,A
+2025-08-23,Brentford,Aston Villa,1,0,1.12964,0.976852,H
+2025-08-23,Burnley,Sunderland,2,0,1.00381,1.12127,H
+2025-08-23,Bournemouth,Wolves,1,0,1.78462,0.373367,H
+2025-08-23,Arsenal,Leeds,5,0,2.73761,0.156761,H
+2025-08-24,Crystal Palace,Nott'm Forest,1,1,1.10188,1.32987,D
+2025-08-24,Everton,Brighton,2,0,1.80116,2.08487,H
+2025-08-24,Fulham,Man United,1,1,1.65333,1.54603,D
+2025-08-25,Newcastle,Liverpool,2,3,1.96342,0.646559,A
+2025-08-30,Chelsea,Fulham,2,0,2.4324,0.736228,H
+2025-08-30,Tottenham,Bournemouth,0,1,0.17067,2.1201,A
+2025-08-30,Wolves,Everton,2,3,0.943257,2.03791,A
+2025-08-30,Sunderland,Brentford,2,1,1.57127,1.44604,H
+2025-08-30,Man United,Burnley,3,2,4.02237,1.32618,H
+2025-08-30,Leeds,Newcastle,0,0,0.6773,0.303635,D
+2025-08-31,Nott'm Forest,West Ham,0,3,0.716018,2.236,A
+2025-08-31,Brighton,Man City,2,1,2.20864,2.13418,H
+2025-08-31,Liverpool,Arsenal,1,0,0.481404,0.485679,H
+2025-08-31,Aston Villa,Crystal Palace,0,3,1.20586,2.59713,A
+2025-09-13,Arsenal,Nott'm Forest,3,0,2.8817,0.293681,H
+2025-09-13,Newcastle,Wolves,1,0,1.19186,0.375942,H
+2025-09-13,Bournemouth,Brighton,2,1,1.44187,0.624923,H
+2025-09-13,Crystal Palace,Sunderland,0,0,1.75805,0.354129,D
+2025-09-13,Everton,Aston Villa,0,0,1.8927,0.354327,D
+2025-09-13,Fulham,Leeds,1,0,1.13979,0.830398,H
+2025-09-13,West Ham,Tottenham,0,3,0.793248,1.51402,A
+2025-09-13,Brentford,Chelsea,2,2,1.17533,0.755999,D
+2025-09-14,Burnley,Liverpool,0,1,0.168041,2.79492,A
+2025-09-14,Man City,Man United,3,0,1.99725,1.51915,H
+2025-09-20,Liverpool,Everton,2,1,1.06166,0.721371,H
+2025-09-20,West Ham,Crystal Palace,1,2,0.466365,2.33565,A
+2025-09-20,Wolves,Leeds,1,3,1.5661,0.456988,A
+2025-09-20,Brighton,Tottenham,2,2,1.40466,1.19181,D
+2025-09-20,Burnley,Nott'm Forest,1,1,1.14159,0.830779,D
+2025-09-20,Man United,Chelsea,2,1,1.34458,0.469843,H
+2025-09-20,Fulham,Brentford,3,1,1.52431,0.826556,H
+2025-09-21,Bournemouth,Newcastle,0,0,0.55066,0.153629,D
+2025-09-21,Sunderland,Aston Villa,1,1,0.938312,0.939354,D
+2025-09-21,Arsenal,Man City,1,1,0.718575,1.1227,D
+2025-09-27,Brentford,Man United,3,1,2.78726,2.23609,H
+2025-09-27,Chelsea,Brighton,1,3,2.02653,2.4751,A
+2025-09-27,Crystal Palace,Liverpool,2,1,3.53323,3.10176,H
+2025-09-27,Leeds,Bournemouth,2,2,2.04728,1.06033,D
+2025-09-27,Man City,Burnley,5,1,3.22133,0.509491,H
+2025-09-27,Nott'm Forest,Sunderland,0,1,1.4203,1.94154,A
+2025-09-27,Tottenham,Wolves,1,1,0.818711,1.15951,D
+2025-09-28,Aston Villa,Fulham,3,1,1.36575,0.952612,H
+2025-09-28,Newcastle,Arsenal,1,2,0.739851,2.07048,A
+2025-09-29,Everton,West Ham,1,1,0.909703,0.775766,D
+2025-10-03,Bournemouth,Fulham,3,1,1.33458,0.84335,H
+2025-10-04,Leeds,Tottenham,1,2,1.48051,0.688198,A
+2025-10-04,Arsenal,West Ham,2,0,3.0585,0.864549,H
+2025-10-04,Man United,Sunderland,2,0,1.9298,0.807119,H
+2025-10-04,Chelsea,Liverpool,2,1,1.23721,2.05981,H
+2025-10-05,Aston Villa,Burnley,2,1,1.73572,0.502292,H
+2025-10-05,Everton,Crystal Palace,2,1,2.13876,2.17789,H
+2025-10-05,Newcastle,Nott'm Forest,2,0,3.81662,0.337689,H
+2025-10-05,Wolves,Brighton,1,1,0.369404,1.39158,D
+2025-10-05,Brentford,Man City,0,1,0.693758,1.09647,A
+2025-10-18,Nott'm Forest,Chelsea,0,3,2.0555,2.5583,A
+2025-10-18,Brighton,Newcastle,2,1,0.857104,1.28313,H
+2025-10-18,Burnley,Leeds,2,0,0.509647,2.33152,H
+2025-10-18,Crystal Palace,Bournemouth,3,3,4.56284,2.0471,D
+2025-10-18,Man City,Everton,2,0,2.4799,0.794622,H
+2025-10-18,Sunderland,Wolves,2,0,1.02481,0.676323,H
+2025-10-18,Fulham,Arsenal,0,1,0.502332,2.07823,A
+2025-10-19,Tottenham,Aston Villa,1,2,1.51461,0.352231,A
+2025-10-19,Liverpool,Man United,1,2,2.60972,2.53117,A
+2025-10-20,West Ham,Brentford,0,2,0.260251,3.46635,A
+2025-10-24,Leeds,West Ham,2,1,2.2214,0.498653,H
+2025-10-25,Chelsea,Sunderland,1,2,1.21332,1.5506,A
+2025-10-25,Newcastle,Fulham,2,1,2.76806,1.52001,H
+2025-10-25,Man United,Brighton,4,2,1.96231,0.947154,H
+2025-10-25,Brentford,Liverpool,3,2,3.27126,2.11838,H
+2025-10-26,Bournemouth,Nott'm Forest,2,0,0.656601,0.305493,H
+2025-10-26,Arsenal,Crystal Palace,1,0,0.856175,0.350534,H
+2025-10-26,Aston Villa,Man City,1,0,0.843906,1.36914,H
+2025-10-26,Wolves,Burnley,2,3,2.58132,1.54544,A
+2025-10-26,Everton,Tottenham,0,3,1.4032,2.09327,A
+2025-11-01,Brighton,Leeds,3,0,2.64127,0.35919,H
+2025-11-01,Burnley,Arsenal,0,2,0.679177,2.51649,A
+2025-11-01,Crystal Palace,Brentford,2,0,0.734558,0.820498,H
+2025-11-01,Fulham,Wolves,3,0,1.91207,0.209934,H
+2025-11-01,Nott'm Forest,Man United,2,2,1.55066,0.91622,D
+2025-11-01,Tottenham,Chelsea,0,1,0.146954,3.34251,A
+2025-11-01,Liverpool,Aston Villa,2,0,1.47021,0.43502,H
+2025-11-02,West Ham,Newcastle,3,1,1.41383,0.523615,H
+2025-11-02,Man City,Bournemouth,3,1,2.48999,0.899846,H
+2025-11-03,Sunderland,Everton,1,1,1.18068,1.00741,D
+2025-11-08,Tottenham,Man United,2,2,1.35532,0.820256,D
+2025-11-08,Everton,Fulham,2,0,2.30607,0.424478,H
+2025-11-08,West Ham,Burnley,3,2,2.96728,1.87478,H
+2025-11-08,Sunderland,Arsenal,2,2,1.20495,2.32943,D
+2025-11-08,Chelsea,Wolves,3,0,3.98342,0.111462,H
+2025-11-09,Aston Villa,Bournemouth,4,0,1.88282,2.00992,H
+2025-11-09,Brentford,Newcastle,3,1,2.73729,0.432277,H
+2025-11-09,Crystal Palace,Brighton,0,0,0.839547,0.637037,D
+2025-11-09,Nott'm Forest,Leeds,3,1,2.49097,0.419461,H
+2025-11-09,Man City,Liverpool,3,0,1.59542,1.0281,H
+2025-11-22,Burnley,Chelsea,0,2,0.660943,1.72093,A
+2025-11-22,Bournemouth,West Ham,2,2,3.48299,0.390782,D
+2025-11-22,Brighton,Brentford,2,1,0.977488,2.19979,H
+2025-11-22,Fulham,Sunderland,1,0,2.83729,0.222768,H
+2025-11-22,Liverpool,Nott'm Forest,0,3,1.79273,1.19459,A
+2025-11-22,Wolves,Crystal Palace,0,2,1.66409,1.44933,A
+2025-11-22,Newcastle,Man City,2,1,2.40555,2.45648,H
+2025-11-23,Leeds,Aston Villa,1,2,1.84668,1.35978,A
+2025-11-23,Arsenal,Tottenham,4,1,2.27827,0.0300672,H
+2025-11-24,Man United,Everton,0,1,2.2737,0.155063,A
+2025-11-29,Brentford,Burnley,3,1,3.72106,0.874025,H
+2025-11-29,Man City,Leeds,3,2,2.85292,1.75142,H
+2025-11-29,Sunderland,Bournemouth,3,2,1.16955,1.79274,H
+2025-11-29,Everton,Newcastle,1,4,1.01125,2.45882,A
+2025-11-29,Tottenham,Fulham,1,2,1.04396,0.494736,A
+2025-11-30,Crystal Palace,Man United,1,2,2.13561,1.47768,A
+2025-11-30,Aston Villa,Wolves,1,0,1.15486,0.692588,H
+2025-11-30,Nott'm Forest,Brighton,0,2,0.960325,2.0572,A
+2025-11-30,West Ham,Liverpool,0,2,0.364152,1.56793,A
+2025-11-30,Chelsea,Arsenal,1,1,0.791914,1.22828,D
+2025-12-02,Bournemouth,Everton,0,1,0.635415,1.19573,A
+2025-12-02,Fulham,Man City,4,5,0.972635,1.96225,A
+2025-12-02,Newcastle,Tottenham,2,2,1.88558,1.05205,D
+2025-12-03,Arsenal,Brentford,2,0,2.63126,0.588716,H
+2025-12-03,Brighton,Aston Villa,3,4,1.96298,3.15745,A
+2025-12-03,Burnley,Crystal Palace,0,1,1.16852,0.987797,A
+2025-12-03,Wolves,Nott'm Forest,0,1,1.02461,1.12389,A
+2025-12-03,Leeds,Chelsea,3,1,2.2047,0.964018,H
+2025-12-03,Liverpool,Sunderland,1,1,1.37633,0.712662,D
+2025-12-04,Man United,West Ham,1,1,2.27674,1.36584,D
+2025-12-06,Aston Villa,Arsenal,2,1,2.71986,1.85965,H
+2025-12-06,Bournemouth,Chelsea,0,0,1.41931,0.672602,D
+2025-12-06,Everton,Nott'm Forest,3,0,1.25348,0.31234,H
+2025-12-06,Man City,Sunderland,3,0,2.41605,0.626486,H
+2025-12-06,Newcastle,Burnley,2,1,1.80708,1.58375,H
+2025-12-06,Tottenham,Brentford,2,0,2.42388,0.470563,H
+2025-12-06,Leeds,Liverpool,3,3,1.79333,2.04805,D
+2025-12-07,Brighton,West Ham,1,1,2.10077,1.7064,D
+2025-12-07,Fulham,Crystal Palace,1,2,0.766771,1.71109,A
+2025-12-08,Wolves,Man United,1,4,0.262147,4.04708,A
+2025-12-13,Chelsea,Everton,2,0,2.64457,1.34,H
+2025-12-13,Liverpool,Brighton,2,0,2.4127,1.69004,H
+2025-12-13,Burnley,Fulham,2,3,2.05486,1.65053,A
+2025-12-13,Arsenal,Wolves,2,1,1.61796,0.61997,H
+2025-12-14,Crystal Palace,Man City,0,3,1.30092,1.35317,A
+2025-12-14,Nott'm Forest,Tottenham,3,0,2.32658,0.380246,H
+2025-12-14,Sunderland,Newcastle,1,0,0.630045,0.169329,H
+2025-12-14,West Ham,Aston Villa,2,3,1.27701,0.595093,A
+2025-12-14,Brentford,Leeds,1,1,0.697006,1.63409,D
+2025-12-15,Man United,Bournemouth,4,4,3.21204,2.35196,D
+2025-12-20,Newcastle,Chelsea,2,2,2.87863,1.0261,D
+2025-12-20,Bournemouth,Burnley,1,1,1.81847,0.480528,D
+2025-12-20,Brighton,Sunderland,0,0,0.919272,1.31044,D
+2025-12-20,Man City,West Ham,3,0,3.58188,1.02143,H
+2025-12-20,Wolves,Brentford,0,2,1.26823,1.56309,A
+2025-12-20,Tottenham,Liverpool,1,2,1.34905,1.23164,A
+2025-12-20,Everton,Arsenal,0,1,0.213273,1.84723,A
+2025-12-20,Leeds,Crystal Palace,4,1,2.90786,1.53058,H
+2025-12-21,Aston Villa,Man United,2,1,1.86917,1.30455,H
+2025-12-22,Fulham,Nott'm Forest,1,0,1.70568,0.486296,H
+2025-12-26,Man United,Newcastle,1,0,0.940811,1.12998,H
+2025-12-27,Nott'm Forest,Man City,1,2,0.600141,1.46468,A
+2025-12-27,Arsenal,Brighton,2,1,2.54318,0.710064,H
+2025-12-27,Brentford,Bournemouth,4,1,2.8513,2.56183,H
+2025-12-27,Burnley,Everton,0,0,1.24948,1.25204,D
+2025-12-27,Liverpool,Wolves,2,1,1.56502,0.780664,H
+2025-12-27,West Ham,Fulham,0,1,1.13719,1.11436,A
+2025-12-27,Chelsea,Aston Villa,1,2,1.97155,2.05918,A
+2025-12-28,Sunderland,Leeds,1,1,0.805957,2.60653,D
+2025-12-28,Crystal Palace,Tottenham,0,1,0.929681,0.870768,A
+2025-12-30,Burnley,Newcastle,1,3,1.32551,2.49248,A
+2025-12-30,Chelsea,Bournemouth,2,2,2.33294,3.49142,D
+2025-12-30,Nott'm Forest,Everton,0,2,1.75445,1.69525,A
+2025-12-30,West Ham,Brighton,2,2,2.27644,3.08914,D
+2025-12-30,Arsenal,Aston Villa,4,1,4.41335,2.94195,H
+2025-12-30,Man United,Wolves,1,1,1.13306,1.21784,D
+2026-01-01,Crystal Palace,Fulham,1,1,2.35346,1.75434,D
+2026-01-01,Liverpool,Leeds,0,0,1.67833,0.15936,D
+2026-01-01,Brentford,Tottenham,0,0,0.556304,0.608309,D
+2026-01-01,Sunderland,Man City,0,0,0.962141,2.44247,D
+2026-01-03,Aston Villa,Nott'm Forest,3,1,1.42988,0.8982,H
+2026-01-03,Wolves,West Ham,3,0,2.23925,0.235678,H
+2026-01-03,Brighton,Burnley,2,0,1.4717,0.254551,H
+2026-01-03,Bournemouth,Arsenal,2,3,0.947846,1.28,A
+2026-01-04,Leeds,Man United,1,1,0.970138,1.94781,D
+2026-01-04,Newcastle,Crystal Palace,2,0,2.72764,1.27825,H
+2026-01-04,Tottenham,Sunderland,1,1,1.4175,0.467481,D
+2026-01-04,Everton,Brentford,2,4,1.00566,3.05179,A
+2026-01-04,Fulham,Liverpool,2,2,0.609182,1.7188,D
+2026-01-04,Man City,Chelsea,1,1,1.03049,2.03726,D
+2026-01-06,West Ham,Nott'm Forest,1,2,1.73697,1.26683,A
+2026-01-07,Everton,Wolves,1,1,1.63321,0.71329,D
+2026-01-07,Bournemouth,Tottenham,3,2,1.19014,1.6261,H
+2026-01-07,Brentford,Sunderland,3,0,3.86096,1.50644,H
+2026-01-07,Crystal Palace,Aston Villa,0,0,1.32505,2.07015,D
+2026-01-07,Fulham,Chelsea,2,1,1.06013,2.45107,H
+2026-01-07,Man City,Brighton,1,1,2.95904,1.33162,D
+2026-01-07,Burnley,Man United,2,2,0.31971,2.52488,D
+2026-01-07,Newcastle,Leeds,4,3,2.43495,2.35318,H
+2026-01-08,Arsenal,Liverpool,0,0,0.701832,0.318642,D
+2026-01-17,Man United,Man City,2,0,3.07278,0.387015,H
+2026-01-17,Chelsea,Brentford,2,0,1.62263,1.47521,H
+2026-01-17,Leeds,Fulham,1,0,2.16898,0.258796,H
+2026-01-17,Liverpool,Burnley,1,1,3.49045,0.546971,D
+2026-01-17,Sunderland,Crystal Palace,2,1,1.84601,1.15169,H
+2026-01-17,Tottenham,West Ham,1,2,1.65292,2.76761,A
+2026-01-17,Nott'm Forest,Arsenal,0,0,0.318481,2.86323,D
+2026-01-18,Wolves,Newcastle,0,0,0.390216,0.813313,D
+2026-01-18,Aston Villa,Everton,0,1,0.905393,0.745859,A
+2026-01-19,Brighton,Bournemouth,1,1,0.995777,1.69737,D
+2026-01-24,West Ham,Sunderland,3,1,2.18675,0.713838,H
+2026-01-24,Burnley,Tottenham,2,2,1.54884,2.59093,D
+2026-01-24,Fulham,Brighton,2,1,1.13243,1.94652,H
+2026-01-24,Man City,Wolves,2,0,1.0654,0.542683,H
+2026-01-24,Bournemouth,Liverpool,3,2,3.31474,0.937335,H
+2026-01-25,Brentford,Nott'm Forest,0,2,2.00413,1.38958,A
+2026-01-25,Crystal Palace,Chelsea,1,3,2.41793,3.08817,A
+2026-01-25,Newcastle,Aston Villa,0,2,1.95484,1.32143,A
+2026-01-25,Arsenal,Man United,2,3,1.42411,0.640902,A
+2026-01-26,Everton,Leeds,1,1,0.889916,1.6766,D
+2026-01-31,Brighton,Everton,1,1,1.42825,1.28126,D
+2026-01-31,Leeds,Arsenal,0,4,0.17871,3.54427,A
+2026-01-31,Wolves,Bournemouth,0,2,2.10353,1.59116,A
+2026-01-31,Chelsea,West Ham,3,2,2.66133,1.72585,H
+2026-01-31,Liverpool,Newcastle,4,1,3.09973,0.284319,H
+2026-02-01,Aston Villa,Brentford,0,1,2.15316,0.314916,A
+2026-02-01,Man United,Fulham,3,2,1.84362,1.71998,H
+2026-02-01,Nott'm Forest,Crystal Palace,1,1,0.987254,1.648,D
+2026-02-01,Tottenham,Man City,2,2,1.49738,2.03614,D
+2026-02-02,Sunderland,Burnley,3,0,1.8865,0.126371,H
+2026-02-06,Leeds,Nott'm Forest,3,1,3.38179,1.6608,H
+2026-02-07,Man United,Tottenham,2,0,2.16576,0.593404,H
+2026-02-07,Bournemouth,Aston Villa,1,1,1.82646,0.646496,D
+2026-02-07,Arsenal,Sunderland,3,0,1.19401,0.427225,H
+2026-02-07,Burnley,West Ham,0,2,1.84644,1.1223,A
+2026-02-07,Fulham,Everton,1,2,2.20126,1.88778,A
+2026-02-07,Wolves,Chelsea,1,3,1.11372,3.76278,A
+2026-02-07,Newcastle,Brentford,2,3,3.3215,1.65022,A
+2026-02-08,Brighton,Crystal Palace,0,1,0.737798,0.928404,A
+2026-02-08,Liverpool,Man City,1,2,1.26652,2.41476,A
+2026-02-10,Chelsea,Leeds,2,2,3.21176,1.28948,D
+2026-02-10,Everton,Bournemouth,1,2,2.33114,1.4121,A
+2026-02-10,Tottenham,Newcastle,1,2,1.68925,2.46991,A
+2026-02-10,West Ham,Man United,1,1,1.30746,0.735767,D
+2026-02-11,Aston Villa,Brighton,1,0,0.576138,0.481306,H
+2026-02-11,Crystal Palace,Burnley,2,3,2.1276,0.691273,A
+2026-02-11,Man City,Fulham,3,0,1.67722,1.05283,H
+2026-02-11,Nott'm Forest,Wolves,0,0,3.69094,0.406959,D
+2026-02-11,Sunderland,Liverpool,0,1,0.693794,3.08172,A
+2026-02-12,Brentford,Arsenal,1,1,1.81154,0.78418,D
+2026-02-18,Wolves,Arsenal,2,2,0.173119,2.01018,D
+2026-02-21,Aston Villa,Leeds,1,1,1.25439,1.27855,D
+2026-02-21,Brentford,Brighton,0,2,1.69023,1.37203,A
+2026-02-21,Chelsea,Burnley,1,1,2.51534,1.01255,D
+2026-02-21,West Ham,Bournemouth,0,0,2.34412,0.522731,D
+2026-02-21,Man City,Newcastle,2,1,2.22648,0.507954,H
+2026-02-22,Crystal Palace,Wolves,1,0,2.03559,1.67749,H
+2026-02-22,Nott'm Forest,Liverpool,0,1,0.934768,2.39634,A
+2026-02-22,Sunderland,Fulham,1,3,1.7609,2.16696,A
+2026-02-22,Tottenham,Arsenal,1,4,0.383264,3.31701,A
+2026-02-23,Everton,Man United,0,1,0.560924,1.4547,A
+2026-02-27,Wolves,Aston Villa,2,0,1.50771,1.31328,H
+2026-02-28,Bournemouth,Sunderland,1,1,1.82434,1.07887,D
+2026-02-28,Burnley,Brentford,3,4,0.823824,2.44595,A
+2026-02-28,Liverpool,West Ham,5,2,2.09939,1.3517,H
+2026-02-28,Newcastle,Everton,2,3,1.11889,2.40731,A
+2026-02-28,Leeds,Man City,0,1,1.37824,2.46834,A
+2026-03-01,Brighton,Nott'm Forest,2,1,1.20107,0.83055,H
+2026-03-01,Fulham,Tottenham,2,1,2.3207,0.952091,H
+2026-03-01,Man United,Crystal Palace,2,1,2.34609,0.384699,H
+2026-03-01,Arsenal,Chelsea,2,1,1.71598,1.35268,H
+2026-03-03,Bournemouth,Brentford,0,0,2.3177,0.673328,D
+2026-03-03,Everton,Burnley,2,0,1.15845,0.762229,H
+2026-03-03,Leeds,Sunderland,0,1,0.888232,0.843856,A
+2026-03-03,Wolves,Liverpool,2,1,0.636033,2.17217,H
+2026-03-04,Aston Villa,Chelsea,1,4,1.06854,3.38883,A
+2026-03-04,Brighton,Arsenal,0,1,0.919228,0.514803,A
+2026-03-04,Fulham,West Ham,0,1,0.628123,1.49528,A
+2026-03-04,Man City,Nott'm Forest,2,2,2.72655,1.23642,D
+2026-03-04,Newcastle,Man United,2,1,1.96637,1.80571,H
+2026-03-05,Tottenham,Crystal Palace,1,3,1.29615,1.91515,A
+2026-03-14,Burnley,Bournemouth,0,0,1.67695,2.36979,D
+2026-03-14,Sunderland,Brighton,0,1,0.659083,1.12832,A
+2026-03-14,Arsenal,Everton,2,0,1.90855,1.17847,H
+2026-03-14,Chelsea,Newcastle,0,1,1.72508,1.03251,A
+2026-03-14,West Ham,Man City,1,1,0.488982,1.9546,D
+2026-03-15,Crystal Palace,Leeds,0,0,0.525205,1.13558,D
+2026-03-15,Man United,Aston Villa,3,1,1.67823,1.21071,H
+2026-03-15,Nott'm Forest,Fulham,0,0,0.821011,0.933988,D
+2026-03-15,Liverpool,Tottenham,1,1,1.30076,1.15636,D
+2026-03-16,Brentford,Wolves,2,2,2.7966,1.80044,D
+2026-03-20,Bournemouth,Man United,2,2,1.76664,1.74574,D
+2026-03-21,Brighton,Liverpool,2,1,3.42956,0.956801,H
+2026-03-21,Fulham,Burnley,3,1,3.48438,1.92556,H
+2026-03-21,Everton,Chelsea,3,0,1.44532,1.35143,H
+2026-03-21,Leeds,Brentford,0,0,0.417296,0.302221,D
+2026-03-22,Newcastle,Sunderland,1,2,1.26705,2.66657,A
+2026-03-22,Aston Villa,West Ham,2,0,2.48528,0.760054,H
+2026-03-22,Tottenham,Nott'm Forest,0,3,1.6189,1.54408,A
+2026-04-10,West Ham,Wolves,4,0,2.54379,0.571967,H
+2026-04-11,Arsenal,Bournemouth,1,2,3.16346,1.39461,A
+2026-04-11,Brentford,Everton,2,2,2.26302,1.57033,D
+2026-04-11,Burnley,Brighton,0,2,0.812029,1.07182,A
+2026-04-11,Liverpool,Fulham,2,0,2.01499,1.42024,H
+2026-04-12,Nott'm Forest,Aston Villa,1,1,0.85045,1.36297,D
+2026-04-12,Sunderland,Tottenham,1,0,1.77584,1.01598,H
+2026-04-12,Crystal Palace,Newcastle,2,1,3.13933,1.27299,H
+2026-04-12,Chelsea,Man City,0,3,1.22108,2.40839,A
+2026-04-13,Man United,Leeds,1,2,1.36555,2.95118,A
+2026-04-18,Brentford,Fulham,0,0,2.33552,0.790707,D
+2026-04-18,Leeds,Wolves,3,0,3.55804,0.568627,H
+2026-04-18,Newcastle,Bournemouth,1,2,1.61167,3.36662,A
+2026-04-18,Tottenham,Brighton,2,2,1.56052,1.1373,D
+2026-04-18,Chelsea,Man United,0,1,1.28109,0.436043,A
+2026-04-19,Aston Villa,Sunderland,4,3,3.90223,1.56008,H
+2026-04-19,Everton,Liverpool,1,2,1.4784,1.38333,A
+2026-04-19,Nott'm Forest,Burnley,4,1,1.4425,0.601418,H
+2026-04-19,Man City,Arsenal,2,1,2.61528,2.28964,H
+2026-04-20,Crystal Palace,West Ham,0,0,0.733442,0.622445,D
+2026-04-21,Brighton,Chelsea,3,0,2.51784,0.297865,H
+2026-04-22,Bournemouth,Leeds,2,2,1.91355,1.21601,D
+2026-04-22,Burnley,Man City,0,1,0.973776,3.40888,A
+2026-04-24,Sunderland,Nott'm Forest,0,5,0.614323,1.54208,A
+2026-04-25,Fulham,Aston Villa,1,0,1.24069,0.906156,H
+2026-04-25,Liverpool,Crystal Palace,3,1,1.45071,2.19912,H
+2026-04-25,West Ham,Everton,2,1,1.8356,1.1144,H
+2026-04-25,Wolves,Tottenham,0,1,0.762656,1.06403,A
+2026-04-25,Arsenal,Newcastle,1,0,0.639189,0.868897,H
+2026-04-27,Man United,Brentford,2,1,1.84852,1.30383,H
+2026-05-01,Leeds,Burnley,3,1,2.09546,0.434597,H
+2026-05-02,Brentford,West Ham,3,0,2.27374,0.753895,H
+2026-05-02,Newcastle,Brighton,3,1,3.12933,1.87112,H
+2026-05-02,Wolves,Sunderland,1,1,1.96131,0.923954,D
+2026-05-02,Arsenal,Fulham,3,0,4.09079,0.696714,H
+2026-05-03,Bournemouth,Crystal Palace,3,0,2.29626,0.678329,H
+2026-05-03,Man United,Liverpool,3,2,2.55612,1.02814,H
+2026-05-03,Aston Villa,Tottenham,1,2,0.609494,1.12225,A
+2026-05-04,Chelsea,Nott'm Forest,1,3,2.17132,2.31019,A
+2026-05-04,Everton,Man City,3,3,1.68558,1.41706,D
+2026-05-09,Liverpool,Chelsea,1,1,0.623191,0.597184,D
+2026-05-09,Brighton,Wolves,3,0,2.22427,0.515647,H
+2026-05-09,Fulham,Bournemouth,0,1,1.24334,0.998003,A
+2026-05-09,Sunderland,Man United,0,0,1.2376,0.535981,D
+2026-05-09,Man City,Brentford,3,0,4.37429,0.670038,H
+2026-05-10,Burnley,Aston Villa,2,2,1.71234,1.75493,D
+2026-05-10,Crystal Palace,Everton,2,2,3.28826,2.10265,D
+2026-05-10,Nott'm Forest,Newcastle,1,1,1.46434,1.65067,D
+2026-05-10,West Ham,Arsenal,0,1,1.32011,1.42953,A
+2026-05-11,Tottenham,Leeds,1,1,1.49036,1.86976,D
+2026-05-13,Man City,Crystal Palace,3,0,1.95679,0.428862,H
+2026-05-15,Aston Villa,Liverpool,4,2,2.5252,1.55027,H
+2026-05-17,Man United,Nott'm Forest,3,2,4.28532,1.84418,H
+2026-05-17,Brentford,Crystal Palace,2,2,1.54564,1.82274,D
+2026-05-17,Everton,Sunderland,1,3,1.32181,1.28383,A
+2026-05-17,Leeds,Brighton,1,0,0.747756,2.23238,H
+2026-05-17,Wolves,Fulham,1,1,1.49725,1.48412,D
+2026-05-17,Newcastle,West Ham,3,1,2.1336,0.957771,H
+2026-05-18,Arsenal,Burnley,1,0,1.22695,0.194884,H
+2026-05-19,Bournemouth,Man City,1,1,1.71486,1.26917,D
+2026-05-19,Chelsea,Tottenham,2,1,1.09262,2.15227,H
+2026-05-24,Brighton,Man United,0,3,0.702398,2.32868,A
+2026-05-24,Burnley,Wolves,1,1,1.28476,2.8433,D
+2026-05-24,Crystal Palace,Arsenal,1,2,1.00492,3.90645,A
+2026-05-24,Fulham,Newcastle,2,0,1.72878,0.24232,H
+2026-05-24,Liverpool,Brentford,1,1,2.99412,1.46082,D
+2026-05-24,Man City,Aston Villa,1,2,1.38085,2.4397,A
+2026-05-24,Nott'm Forest,Bournemouth,1,1,2.05852,1.33684,D
+2026-05-24,Sunderland,Chelsea,2,1,2.33109,0.920885,H
+2026-05-24,Tottenham,Everton,1,0,1.40597,0.268476,H
+2026-05-24,West Ham,Leeds,3,0,2.73135,1.94969,H
