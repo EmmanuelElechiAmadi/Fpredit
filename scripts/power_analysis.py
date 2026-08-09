@@ -119,7 +119,7 @@ def analyse(df: pd.DataFrame, label: str) -> dict:
         "n_for_3pct_edge": round(n_3pct, 0),
         "edge_corr": round(rho, 4),
         "edge_corr_p": round(p_val, 4),
-        "n_for_corr_0.03": round(n_corr, 0),
+        "n_for_corr_003": round(n_corr, 0),
     }
 
 
@@ -162,7 +162,7 @@ def main():
         "n_for_3pct_edge",
         "edge_corr",
         "edge_corr_p",
-        "n_for_corr_0.03",
+        "n_for_corr_003",
     ]
     out = pd.DataFrame(rows)
     print(out[cols].to_string(index=False))

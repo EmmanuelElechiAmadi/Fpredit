@@ -50,7 +50,21 @@ function makeChart(id, config) {
   destroyChart(id);
   const ctx = document.getElementById(id);
   if (!ctx) return;
-  state.charts[id] = new Chart(ctx, config);
+  if (typeof Chart === "undefined") {
+    // Chart.js failed to load (offline/CDN blocked) — degrade gracefully.
+    console.warn("Chart.js not available; skipping chart", id);
+    ctx.parentElement &&
+      (ctx.parentElement.innerHTML =
+        '<p class="muted small">Chart unavailable (Chart.js not loaded).</p>');
+    return;
+  }
+  try {
+    state.charts[id] = new Chart(ctx, config);
+  } catch (err) {
+    console.error("Failed to render chart", id, err);
+    ctx.parentElement &&
+      (ctx.parentElement.innerHTML = `<p class="muted small">Chart failed to render: ${err.message}</p>`);
+  }
 }
 
 const PALETTE = {
@@ -699,7 +713,7 @@ async function loadResearch() {
     // Verdict stat cards
     const resStats = [
       { label: "Holdout season", value: h.season || "—", icon: "📅" },
-      { label: "Holdout matches", value: h.n_matches ?? "—", icon: "🎯" },
+      { label: "Holdout matches", value: h.n_matches != null ? h.n_matches : "—", icon: "🎯" },
       { label: "Residual log loss", value: h.residual_log_loss == null ? "—" : (h.residual_log_loss >= 0 ? "+" : "") + h.residual_log_loss.toFixed(4), icon: "📉", tone: h.residual_log_loss != null && h.residual_log_loss < 0 ? "good" : "bad" },
       { label: "Edge correlation", value: h.edge_corr == null ? "—" : (h.edge_corr >= 0 ? "+" : "") + h.edge_corr.toFixed(3), icon: "📈", tone: h.edge_corr != null && h.edge_corr > 0.02 ? "good" : "bad" },
       { label: "Value-bet ROI", value: h.value_bet_roi == null ? "—" : fmtPct(h.value_bet_roi), icon: "💰", tone: h.value_bet_roi != null && h.value_bet_roi > 0 ? "good" : "bad" },
@@ -746,7 +760,7 @@ async function loadResearch() {
       { k: "OOS matches for a 2% edge", v: fmtNum(pw.n_for_2pct_edge, 0) },
       { k: "OOS matches for a 3% edge", v: fmtNum(pw.n_for_3pct_edge, 0) },
       { k: "Edge correlation (tuning window)", v: pw.edge_corr == null ? "—" : (pw.edge_corr >= 0 ? "+" : "") + pw.edge_corr.toFixed(4) },
-      { k: "OOS matches to detect corr 0.03", v: fmtNum(pw.n_for_corr_0.03, 0) },
+      { k: "OOS matches to detect corr 0.03", v: fmtNum(pw.n_for_corr_003, 0) },
     ];
     $("#powerPanel").innerHTML =
       `<div class="market-grid">` +

@@ -4,11 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Football Predictor — Intelligence Hub</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/static/styles.css" />
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+<!-- Vendored locally so the app works fully offline (no CDN dependency). -->
+<script src="/static/vendor/chart.umd.js"></script>
+<script src="/static/vendor/chartjs-chart-matrix.min.js"></script>
 </head>
 <body>
 <div class="shell">
@@ -211,6 +210,15 @@
 </div>
 <div id="errorBanner" class="error-banner"></div>
 <div id="loadingOverlay" class="loading-overlay"><div class="spinner"></div><p id="loadingText">Loading intelligence…</p></div>
+<script>
+  // Any JS error becomes a visible banner instead of a blank page.
+  window.addEventListener("error", function (e) {
+    var b = document.getElementById("errorBanner");
+    if (!b) return;
+    b.textContent = "⚠️ " + (e.message || "Unknown JS error") + " at " + (e.filename || "").split("/").pop() + ":" + e.lineno;
+    b.classList.add("visible");
+  });
+</script>
 <script src="/static/app.js"></script>
 </body>
 </html>
