@@ -5,6 +5,10 @@ Serves a modern single-page UI on top of the existing prediction pipeline:
   GET  /api/leagues                    — list available leagues + metadata
   GET  /api/dashboard?league=EPL       — standings, form, plots data
   GET  /api/teams?league=EPL           — team intelligence (ratings, form, fixtures)
+  GET  /api/fixtures                   — upcoming fixtures + team list (new season)
+  POST /api/fixtures                   — add an upcoming fixture
+  DELETE /api/fixtures                 — remove an upcoming fixture
+  POST /api/fixtures/generate-round-robin — build a placeholder double round-robin
   GET  /api/predict                    — H/D/A probs + expected goals + market
   GET  /api/backtest?league=EPL        — walk-forward metrics vs baselines
   GET  /api/calibrate?league=EPL       — calibrate Elo draw width
@@ -20,7 +24,7 @@ import functools
 import logging
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -28,10 +32,18 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from src.config import load_config
 from src.data_loader import LEAGUE_CODES, load_league_csvs
 from src.elo import EloEngine
+from src.fixtures import (
+    add_fixture,
+    delete_fixture,
+    generate_round_robin,
+    load_fixtures,
+    write_fixtures_batch,
+)
 from src.market import add_implied_probabilities
 from src.model_factory import build_ensemble
 from src.xg_loader import join_xg, load_league_xg
@@ -700,6 +712,131 @@ def predict(
         "xg_enabled": "xg" in comps,
         "market": market,
         "score_matrix": score_grid,
+    }
+
+
+class FixtureIn(BaseModel):
+    """Body for POST /api/fixtures — one new fixture."""
+
+    home: str
+    away: str
+    date: str  # YYYY-MM-DD (or DD/MM/YYYY)
+    matchweek: Optional[int] = None
+
+
+def _fixture_rows(league: str) -> list[dict]:
+    """Upcoming fixtures for a league plus the team list used to build them."""
+    df = load_fixtures(league=league)
+    rows = []
+    for _, r in df.iterrows():
+        rows.append(
+            {
+                "date": r["date"].date().isoformat(),
+                "home": r["home_team"],
+                "away": r["away_team"],
+                "matchweek": int(r["matchweek"]) if pd.notna(r["matchweek"]) else None,
+                "season": r["season"],
+                "source": r["source"],
+            }
+        )
+    return rows
+
+
+def _current_season_teams(league: str) -> list[str]:
+    """Team list for the league's *most recent* season (the ones the new season
+    inherits) — not the union across all seasons, which includes relegated clubs.
+
+    The season is bounded by July 1 of the year before the latest match date
+    (European seasons run August–May, so that cutoff is safely inside the
+    most recent completed season and excludes the tail of the one before it).
+    """
+    cfg = _cfg()
+    df = _load_cached(league, cfg.data.data_dir).sort_values("date")
+    latest = df["date"].max()
+    cutoff = pd.Timestamp(year=latest.year - 1, month=7, day=1)
+    season_df = df[df["date"] >= cutoff]
+    return sorted(
+        set(season_df["home_team"].tolist()) | set(season_df["away_team"].tolist())
+    )
+
+
+@app.get("/api/fixtures")
+def fixtures(league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$")):
+    """Who is playing next in this league — upcoming fixtures plus the team list.
+
+    The fixture rows are editable via POST/DELETE /api/fixtures. Team names
+    come from the league's latest season so the add-form only offers teams the
+    model actually knows (unknown/promoted teams get a league-mean prior).
+    """
+    teams = _current_season_teams(league)
+    known = set(teams)
+    rows = _fixture_rows(league)
+    for r in rows:
+        r["known"] = r["home"] in known and r["away"] in known
+
+    seasons = sorted({r["season"] for r in rows})
+    return {
+        "league": league,
+        "league_meta": _league_meta(league),
+        "has_fixtures": bool(rows),
+        "fixtures": rows,
+        "teams": teams,
+        "seasons": seasons,
+        "n_fixtures": len(rows),
+        "xg_available": _xg_available(league),
+    }
+
+
+@app.post("/api/fixtures")
+def fixtures_add(
+    body: FixtureIn, league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$")
+):
+    """Add one upcoming fixture to the league's fixtures folder."""
+    try:
+        if pd.Timestamp(body.date).normalize() < pd.Timestamp.now().normalize():
+            raise ValueError("Fixture date is in the past — pick an upcoming date.")
+        add_fixture(
+            league,
+            body.home,
+            body.away,
+            body.date,
+            matchweek=body.matchweek,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True, "fixtures": _fixture_rows(league)}
+
+
+@app.delete("/api/fixtures")
+def fixtures_delete(
+    league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
+    home: str = Query(...),
+    away: str = Query(...),
+    date: str = Query(...),
+):
+    """Remove a fixture. Returns the remaining fixture list."""
+    deleted = delete_fixture(league, home, away, date)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    return {"ok": True, "fixtures": _fixture_rows(league)}
+
+
+@app.post("/api/fixtures/generate-round-robin")
+def fixtures_round_robin(
+    league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
+):
+    """Build a full double round-robin *placeholder* schedule for the league's
+    current team list (every pair twice, home and away) and save it to
+    data/fixtures. Clearly a stand-in until the official fixtures are released."""
+    teams = _current_season_teams(league)
+    schedule = generate_round_robin(teams)
+    n_added = write_fixtures_batch(league, schedule)
+    return {
+        "ok": True,
+        "n_added": n_added,
+        "n_teams": len(teams),
+        "n_matchweeks": int(schedule["matchweek"].max()),
+        "fixtures": _fixture_rows(league),
     }
 
 

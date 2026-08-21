@@ -7,6 +7,7 @@ const state = {
   leagueMeta: { label: "Premier League", code: "E0", country: "England" },
   teams: [],
   charts: {},
+  pendingPredict: null, // {home, away} — applied by loadTeams when the dropdowns fill
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -21,6 +22,22 @@ const LEAGUE_LABELS = {
 
 async function api(path) {
   const res = await fetch("/api" + path);
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      detail = (await res.json()).detail || detail;
+    } catch (_) {}
+    throw new Error(detail);
+  }
+  return res.json();
+}
+
+async function apiRaw(path, options = {}) {
+  const res = await fetch("/api" + path, {
+    method: options.method || "GET",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -80,6 +97,7 @@ const PALETTE = {
 
 const VIEWS = {
   dashboard: { title: "Dashboard", sub: "League overview & model insights" },
+  fixtures: { title: "Fixtures", sub: "Who's playing next — run the model on any match" },
   teams: { title: "Team Intelligence", sub: "Ratings, strength & form per team" },
   predictor: { title: "Match Predictor", sub: "H/D/A, expected goals & score matrix" },
   backtest: { title: "Backtest Lab", sub: "Walk-forward validation vs baselines" },
@@ -113,6 +131,7 @@ function switchView(view) {
   if (t) t.textContent = msgs[view] || "Loading intelligence…";
 
   if (view === "dashboard") loadDashboard();
+  if (view === "fixtures") loadFixtures();
   if (view === "teams") loadTeams();
   if (view === "predictor") loadTeams();
   if (view === "backtest") loadBacktest();
@@ -151,8 +170,23 @@ function showError(msg) {
   const el = $("#errorBanner");
   if (!el) return;
   el.textContent = msg;
+  el.classList.remove("success");
   el.classList.add("visible");
   errorDismissed = false;
+}
+
+function showNotice(msg) {
+  // Green success-flavored banner, auto-dismissed after a few seconds.
+  const el = $("#errorBanner");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.add("success");
+  el.classList.add("visible");
+  errorDismissed = true;
+  clearTimeout(showNotice._t);
+  showNotice._t = setTimeout(() => {
+    el.classList.remove("visible");
+  }, 6000);
 }
 
 async function withLoading(fn, msg) {
@@ -337,6 +371,22 @@ async function loadTeams() {
       $("#awaySelect").appendChild(optA);
     });
     if (teams.length > 1) $("#awaySelect").selectedIndex = 1;
+
+    // A fixture's "Predict" button stashed the teams it wants predicted —
+    // select them now that the dropdowns exist, then run the model.
+    if (state.pendingPredict) {
+      const { home, away } = state.pendingPredict;
+      state.pendingPredict = null;
+      if (home && away && home !== away) {
+        const sel = (select, name) => {
+          const el = $(select);
+          [...el.options].forEach((o, i) => { if (o.value === name) el.selectedIndex = i; });
+        };
+        sel("#homeSelect", home);
+        sel("#awaySelect", away);
+        runPrediction();
+      }
+    }
   });
 }
 
@@ -358,6 +408,225 @@ async function runPrediction() {
     renderPrediction(d);
   });
 }
+
+/* ---------- Fixtures (new-season previews) ---------- */
+
+let fixState = { teams: [], fixtures: [] };
+
+async function loadFixtures() {
+  await withLoading(async () => {
+    const d = await api(`/fixtures?league=${state.league}`);
+    fixState.teams = d.teams || [];
+    fixState.fixtures = d.fixtures || [];
+    renderFixtures(d);
+  });
+}
+
+function fixtureRow(r) {
+  const mw = r.matchweek ? `<span class="badge mw">GW${r.matchweek}</span>` : "";
+  const unknown = !r.known
+    ? ' <span class="badge warn small-badge" title="Team not in training data — model uses league-mean prior">new</span>'
+    : "";
+  return `<tr>
+    <td><span class="fix-date">${r.date}</span></td>
+    <td class="team-cell home">${r.home}</td>
+    <td class="fix-vs">vs</td>
+    <td class="team-cell away">${r.away}${unknown}</td>
+    <td>${mw}</td>
+    <td class="fix-actions">
+      <button class="btn-ghost small fix-predict" data-home="${r.home.replace(/"/g, "&quot;")}" data-away="${r.away.replace(/"/g, "&quot;")}">🎯 Predict</button>
+      <button class="btn-icon fix-del" data-home="${r.home.replace(/"/g, "&quot;")}" data-away="${r.away.replace(/"/g, "&quot;")}" data-date="${r.date}" title="Remove fixture">✕</button>
+    </td>
+  </tr>`;
+}
+
+function renderFixtures(d) {
+  const rows = d.fixtures;
+  const teams = d.teams || [];
+
+  const seasons = d.seasons && d.seasons.length ? d.seasons.join(", ") : "—";
+  const mwCount = new Set(rows.map((r) => r.matchweek).filter((x) => x != null)).size;
+  $("#fixStats").innerHTML = [
+    { label: "Upcoming matches", value: rows.length, icon: "🗓️" },
+    { label: "Matchweeks covered", value: rows.length ? mwCount : 0, icon: "📅" },
+    { label: "Teams in league", value: teams.length, icon: "🛡️" },
+    { label: "Season(s)", value: seasons, icon: "🏆" },
+  ]
+    .map(
+      (s) =>
+        `<div class="stat-card"><div class="stat-icon">${s.icon}</div><div class="stat-value">${s.value}</div><div class="stat-label">${s.label}</div></div>`
+    )
+    .join("");
+
+  // Populate add-fixture form selects (only teams the model has seen).
+  const fill = (sel, selectedIdx) => {
+    const el = $(sel);
+    el.innerHTML = "";
+    teams.forEach((t, i) => {
+      const o = document.createElement("option");
+      o.value = t;
+      o.textContent = t;
+      el.appendChild(o);
+    });
+    if (selectedIdx != null && el.options.length > selectedIdx) el.selectedIndex = selectedIdx;
+  };
+  fill("#fixHomeSelect", 0);
+  fill("#fixAwaySelect", 1);
+
+  // Default the date input to the next Saturday.
+  const dateEl = $("#fixDate");
+  if (dateEl && !dateEl.value) {
+    const next = new Date();
+    next.setDate(next.getDate() + ((6 - next.getDay() + 7) % 7) + 7);
+    dateEl.value = next.toISOString().slice(0, 10);
+  }
+
+  const hasFixtures = rows.length > 0;
+  $("#fixEmpty").style.display = hasFixtures ? "none" : "block";
+  $("#fixPredictAllBtn").disabled = !hasFixtures;
+  $("#fixSeasonLabel").textContent = d.seasons && d.seasons.length ? `· ${d.seasons.join(", ")}` : "";
+
+  $("#fixTable").innerHTML = hasFixtures
+    ? `<thead><tr><th>Date</th><th>Home</th><th></th><th>Away</th><th>Round</th><th></th></tr></thead><tbody>${rows.map(fixtureRow).join("")}</tbody>`
+    : "";
+}
+
+async function addFixture() {
+  const home = $("#fixHomeSelect").value;
+  const away = $("#fixAwaySelect").value;
+  const date = $("#fixDate").value;
+  const mw = $("#fixMw").value;
+  if (!date) {
+    showError("Pick a date for the fixture.");
+    return;
+  }
+  if (!home || !away || home === away) {
+    showError("Pick two different teams.");
+    return;
+  }
+  await withLoading(async () => {
+    await apiRaw(`/fixtures?league=${state.league}`, {
+      method: "POST",
+      body: { home, away, date, matchweek: mw ? parseInt(mw, 10) : null },
+    });
+    $("#fixMw").value = "";
+    await loadFixtures();
+  });
+}
+
+async function removeFixture(home, away, date) {
+  await withLoading(async () => {
+    await apiRaw(
+      `/fixtures?league=${state.league}&home=${encodeURIComponent(home)}&away=${encodeURIComponent(away)}&date=${encodeURIComponent(date)}`,
+      { method: "DELETE" }
+    );
+    await loadFixtures();
+  });
+}
+
+async function predictFixture(home, away) {
+  // Jump to the Match Predictor with these teams and run the model.
+  // loadTeams() repopulates the dropdowns asynchronously, so stash the target
+  // teams in state and let loadTeams() apply them once the options exist.
+  state.pendingPredict = { home, away };
+  document.querySelectorAll(".nav-item").forEach((b) => b.classList.remove("active"));
+  document.querySelector('[data-view="predictor"]').classList.add("active");
+  switchView("predictor");
+}
+
+function renderFixResults(results) {
+  const card = $("#fixResultsCard");
+  card.style.display = "block";
+  const failed = results.filter((r) => r.error);
+  $("#fixResultsHint").textContent = results.length
+    ? `${results.length - failed.length}/${results.length} predicted`
+    : "";
+
+  $("#fixResultsTable").innerHTML =
+    `<thead><tr><th>Match</th><th>H</th><th>D</th><th>A</th><th>xG</th><th>Score</th><th>Pick</th></tr></thead><tbody>` +
+    results
+      .map((r) => {
+        if (r.error) {
+          return `<tr><td class="team-cell">${r.home} v ${r.away}</td><td colspan="6" class="muted">⚠️ ${r.error}</td></tr>`;
+        }
+        const p = r.data.probabilities;
+        const xg = r.data.expected_goals;
+        const bar = (v) =>
+          `<span class="fix-bar"><span style="width:${Math.round(v * 100)}%"></span></span>`;
+        const pickCls =
+          r.data.predicted_result === "H" ? "h" : r.data.predicted_result === "D" ? "d" : "a";
+        return `<tr>
+          <td class="team-cell home">${r.home} <span class="muted small">v</span> ${r.away}</td>
+          <td>${bar(p.home_win)}<span class="fix-pct">${fmtPct(p.home_win)}</span></td>
+          <td>${bar(p.draw)}<span class="fix-pct">${fmtPct(p.draw)}</span></td>
+          <td>${bar(p.away_win)}<span class="fix-pct">${fmtPct(p.away_win)}</span></td>
+          <td>${fmtNum(xg.home)}–${fmtNum(xg.away)}</td>
+          <td>${r.data.most_likely_score}</td>
+          <td><span class="badge ${pickCls}">${r.data.predicted_result}</span></td>
+        </tr>`;
+      })
+      .join("") +
+    `</tbody>`;
+}
+
+async function predictAll() {
+  const fixtures = fixState.fixtures;
+  if (!fixtures.length) return;
+  $("#fixResultsCard").style.display = "block";
+  $("#fixResultsHint").textContent = "Predicting…";
+  $("#fixResultsTable").innerHTML =
+    `<tbody><tr><td colspan="7" class="muted">Running the ensemble on ${fixtures.length} fixtures…</td></tr></tbody>`;
+
+  const results = [];
+  let i = 0;
+  for (const f of fixtures) {
+    i++;
+    $("#fixResultsHint").textContent = `Predicting ${i}/${fixtures.length}…`;
+    try {
+      const data = await api(
+        `/predict?league=${state.league}&home=${encodeURIComponent(f.home)}&away=${encodeURIComponent(f.away)}`
+      );
+      results.push({ home: f.home, away: f.away, date: f.date, data });
+    } catch (e) {
+      results.push({ home: f.home, away: f.away, date: f.date, error: e.message });
+    }
+  }
+  renderFixResults(results);
+}
+
+async function generateRoundRobin() {
+  if (
+    !confirm(
+      "Generate a full double round-robin PLACEHOLDER schedule from the league's current team list (every pair twice, home and away)?\n\nThis is a stand-in until the official new-season fixtures are released — replace it later with the real list."
+    )
+  ) {
+    return;
+  }
+  await withLoading(async () => {
+    const d = await apiRaw(`/fixtures/generate-round-robin?league=${state.league}`, {
+      method: "POST",
+      body: {},
+    });
+    await loadFixtures();
+    showNotice(`Round-robin saved: ${d.n_added} matches over ${d.n_matchweeks} matchweeks for ${d.n_teams} teams.`);
+  });
+}
+
+$("#fixAddBtn").addEventListener("click", addFixture);
+$("#fixRoundRobinBtn").addEventListener("click", generateRoundRobin);
+$("#fixPredictAllBtn").addEventListener("click", predictAll);
+
+document.addEventListener("click", (e) => {
+  const predictBtn = e.target.closest(".fix-predict");
+  if (predictBtn) {
+    predictFixture(predictBtn.dataset.home, predictBtn.dataset.away);
+    return;
+  }
+  const delBtn = e.target.closest(".fix-del");
+  if (delBtn) {
+    removeFixture(delBtn.dataset.home, delBtn.dataset.away, delBtn.dataset.date);
+  }
+});
 
 function renderPrediction(d) {
   $("#predictResults").style.display = "block";

@@ -69,6 +69,32 @@ python scripts/scrape_understat.py --league SERIEA --seasons 5   # data/xg/SERIE
 python backtest.py --league EPL --xg-dir data/xg                 # xG features enabled
 python predict.py "Arsenal" "Chelsea" --xg-dir data/xg
 ```
+
+## New-season fixtures (who's playing next)
+
+Before the season starts there is nothing to predict yet, so the web UI has a
+dedicated **Fixtures** view that shows *upcoming* matches and lets you run the
+ensemble on any of them:
+
+- **Add fixtures** — pick a date, home/away team and (optionally) matchweek from
+  the league's current team list. Fixtures are stored as CSVs in
+  `data/fixtures/<LEAGUE_CODE>/<season>.csv`.
+- **Drop in the official file** — when football-data.co.uk posts the new
+  season's CSV, just save it as `data/fixtures/E0/2026-27.csv` (their native
+  `Date,HomeTeam,AwayTeam,...` layout is understood; so is a minimal
+  `date,home_team,away_team[,matchweek]` layout). It is picked up automatically.
+- **Predict** — each fixture row has a **🎯 Predict** button that jumps to the
+  Match Predictor pre-loaded with those two teams, and a **⚡ Predict all**
+  button that runs the whole slate and renders an H/D/A + xG table inline.
+- **Placeholder round-robin** — with no official file yet, you can generate a
+  full double round-robin schedule from the league's current 20 teams (380
+  matches, 38 matchweeks) as an explicit stand-in, then replace rows once the
+  real fixtures are out.
+
+Newly promoted / unknown teams are flagged with a *new* badge and predicted
+from the league-mean prior (the market features then carry the fixture when
+odds are supplied).
+
 `--seasons N` always means "the N most recent *complete* seasons" (in August
 2026 that is 2021-22 .. 2025-26). Use `--from 2021 --to 2025` for an explicit
 range.
@@ -241,6 +267,8 @@ webapp/static/     single-page frontend (index.html, app.js, styles.css)
 `http://localhost:8000`:
 
 - **Dashboard** — standings, outcome mix, goals-per-game trend, form, xG badge.
+- **Fixtures** — who's playing next (see *New-season fixtures* above); add/remove
+  fixtures and run the model on any match or the whole slate.
 - **Team Intelligence** — Elo, Dixon-Coles attack/defense **and** dynamic
   (Kalman-filtered) attack/defense ratings per team.
 - **Match Predictor** — H/D/A, expected goals, most-likely score, score matrix,

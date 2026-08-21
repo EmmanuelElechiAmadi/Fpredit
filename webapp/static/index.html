@@ -21,6 +21,7 @@
     </div>
     <nav class="nav">
       <button class="nav-item active" data-view="dashboard"><span>📊</span> Dashboard</button>
+      <button class="nav-item" data-view="fixtures"><span>🗓️</span> Fixtures</button>
       <button class="nav-item" data-view="teams"><span>🧠</span> Team Intelligence</button>
       <button class="nav-item" data-view="predictor"><span>🎯</span> Match Predictor</button>
       <button class="nav-item" data-view="backtest"><span>🔄</span> Backtest Lab</button>
@@ -77,6 +78,62 @@
       <div class="card">
         <h3>Recent Results</h3>
         <div class="table-wrap"><table id="recentTable" class="table"></table></div>
+      </div>
+    </div>
+
+    <div id="view-fixtures" class="view">
+      <div class="stat-cards" id="fixStats"></div>
+
+      <div class="card">
+        <h3>Add Fixture <span class="card-sub">pick the match you want to run on the model</span></h3>
+        <div class="fixture-form">
+          <label class="fixture-field">
+            <span>Date</span>
+            <input type="date" id="fixDate" />
+          </label>
+          <label class="fixture-field">
+            <span>Home</span>
+            <select id="fixHomeSelect"></select>
+          </label>
+          <label class="fixture-field">
+            <span>Away</span>
+            <select id="fixAwaySelect"></select>
+          </label>
+          <label class="fixture-field fix-mw">
+            <span>Matchweek (optional)</span>
+            <input type="number" id="fixMw" min="1" max="38" placeholder="1" />
+          </label>
+          <button id="fixAddBtn" class="btn-primary">＋ Add Fixture</button>
+        </div>
+        <p class="muted small fixture-hint">
+          Fixtures are stored in <code>data/fixtures/&lt;LEAGUE&gt;/&lt;season&gt;.csv</code>.
+          Once football-data.co.uk posts the new season's file, drop it there and it will
+          be picked up automatically. No official file yet? Use the add form above, or
+          <button id="fixRoundRobinBtn" class="btn-ghost small">generate a placeholder round-robin</button>
+          for the league's current teams.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-head-row">
+          <h3>Upcoming Fixtures <span class="card-sub" id="fixSeasonLabel"></span></h3>
+          <button id="fixPredictAllBtn" class="btn-primary small" disabled>⚡ Predict all</button>
+        </div>
+        <div class="table-wrap">
+          <table id="fixTable" class="table"></table>
+        </div>
+        <div id="fixEmpty" class="empty-state">
+          <p>No upcoming fixtures yet for this league.</p>
+          <p class="muted small">Add your first fixture above to see who's playing and run the model on it.</p>
+        </div>
+      </div>
+
+      <div class="card" id="fixResultsCard" style="display:none">
+        <div class="card-head-row">
+          <h3>Round Predictions <span class="card-sub">ensemble H/D/A &amp; expected goals</span></h3>
+          <span id="fixResultsHint" class="muted small"></span>
+        </div>
+        <div class="table-wrap"><table id="fixResultsTable" class="table"></table></div>
       </div>
     </div>
 
