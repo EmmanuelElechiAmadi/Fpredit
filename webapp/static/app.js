@@ -224,11 +224,10 @@ async function loadDashboard() {
       .join("");
 
     $("#standingsSeason").textContent =
-      `${d.latest_date.slice(0, 4)}/${(Number(d.latest_date.slice(0, 4)) + 1) % 100}`;
+      d.standings_season || `${d.latest_date.slice(0, 4)}/${(Number(d.latest_date.slice(0, 4)) + 1) % 100}`;
     $("#standingsTable").innerHTML =
       `<thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>` +
       d.standings
-        .slice(0, 10)
         .map(
           (r) =>
             `<tr><td>${r.rank}</td><td class="team-cell">${r.team}</td><td>${r.played}</td><td>${r.won}</td><td>${r.draw}</td><td>${r.lost}</td><td>${r.goal_diff > 0 ? "+" : ""}${r.goal_diff}</td><td class="pts">${r.points}</td></tr>`
@@ -401,10 +400,20 @@ async function runPrediction() {
     alert("Pick two different teams.");
     return;
   }
+  // Optional closing odds — enables the residual-vs-market layer for any
+  // fixture, not just ones whose historical meetings carry odds columns.
+  const oh = parseFloat($("#oddsH").value);
+  const od = parseFloat($("#oddsD").value);
+  const oa = parseFloat($("#oddsA").value);
+  const hasOdds = [oh, od, oa].every((v) => Number.isFinite(v) && v >= 1);
   await withLoading(async () => {
-    const d = await api(
-      `/predict?league=${state.league}&home=${encodeURIComponent(home)}&away=${encodeURIComponent(away)}`
-    );
+    const q = new URLSearchParams({ league: state.league, home, away });
+    if (hasOdds) {
+      q.set("odds_home", oh);
+      q.set("odds_draw", od);
+      q.set("odds_away", oa);
+    }
+    const d = await api(`/predict?${q.toString()}`);
     renderPrediction(d);
   });
 }
@@ -672,7 +681,7 @@ function renderPrediction(d) {
   $("#scoreBox").textContent = d.most_likely_score;
 
   $("#marketBox").innerHTML = d.market
-    ? `<h5>Market Implied</h5><div class="market-row"><span>H ${fmtPct(d.market.implied_home)}</span><span>D ${fmtPct(d.market.implied_draw)}</span><span>A ${fmtPct(d.market.implied_away)}</span></div>`
+    ? `<h5>Market Implied${d.market.source === "Your odds" ? " (your line)" : ""}</h5><div class="market-row"><span>H ${fmtPct(d.market.implied_home)}</span><span>D ${fmtPct(d.market.implied_draw)}</span><span>A ${fmtPct(d.market.implied_away)}</span></div>`
     : `<p class="muted">No market odds for this fixture.</p>`;
 
   const mat = d.score_matrix.probs;
@@ -771,12 +780,15 @@ function renderComponents(d) {
 /* Market vs model: bar comparison of implied vs model probabilities. */
 function renderMarketCompare(d) {
   const el = $("#marketCompareBox");
+  const sub = $("#marketCompareSub");
   if (!d.market) {
     el.innerHTML =
-      `<p class="muted">No closing line recorded for this fixture. Pass odds to the API to enable the residual-vs-market layer.</p>`;
+      `<p class="muted">No closing line recorded for this fixture. Enter the closing odds above to enable the residual-vs-market layer.</p>`;
+    if (sub) sub.textContent = "closing line unavailable";
     return;
   }
   const mk = d.market;
+  if (sub) sub.textContent = mk.source === "Your odds" ? "your closing odds" : "last meeting closing line";
   const labels = [`${d.home}`, "Draw", `${d.away}`];
   const rows = labels
     .map((label, i) => {
@@ -794,9 +806,12 @@ function renderMarketCompare(d) {
       </div>`;
     })
     .join("");
+  const oddsNote = mk.odds
+    ? `Your line: H ${fmtNum(mk.odds[0], 2)} / D ${fmtNum(mk.odds[1], 2)} / A ${fmtNum(mk.odds[2], 2)}. `
+    : `Market line from last meeting's closing odds. `;
   el.innerHTML =
     `<div class="mm-head"><span></span><b>Model</b><b>Market</b><b>Edge</b></div>` + rows +
-    `<p class="muted small">Market line from last meeting's closing odds. Positive edge = model sees value the market hasn't priced.</p>`;
+    `<p class="muted small">${oddsNote}Positive edge = model sees value the market hasn't priced.</p>`;
 }
 
 /* ---------- Backtest Lab ---------- */

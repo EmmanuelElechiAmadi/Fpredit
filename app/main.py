@@ -21,10 +21,13 @@ Run:  uvicorn app.main:app --reload
 from __future__ import annotations
 
 import functools
+import json
 import logging
+import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -56,12 +59,24 @@ _BT_CACHE_TTL = 60 * 30  # backtests are expensive; hold for 30 minutes
 
 # (league, min_train, step, invalidation_hash) -> (computed_at, payload, result_df)
 _BT_CACHE: dict[tuple, tuple[float, dict, pd.DataFrame]] = {}
+# Walk-forward backtests are expensive (~1-2 min); serialize concurrent
+# requests so the warm-up thread and user requests don't each recompute the
+# same league simultaneously and thrash the CPU.
+_BT_LOCK = threading.Lock()
 
 # Fitted ensemble per (league, data-version) — fitting takes ~15s per league
 # and the old code refit on every /api/teams and /api/predict request.
 _MODEL_CACHE: dict[tuple, object] = {}
 
-app = FastAPI(title="Football Predictor API", version="1.0.0")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Startup/shutdown hooks (replaces the deprecated ``@app.on_event``)."""
+    _warm_caches()
+    yield
+
+
+app = FastAPI(title="Football Predictor API", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -215,11 +230,6 @@ def _warm_caches() -> None:
     threading.Thread(target=_warm, daemon=True, name="cache-warm").start()
 
 
-@app.on_event("startup")
-def _startup_warm() -> None:
-    _warm_caches()
-
-
 def _compute_backtest(df, xg_df, min_train, step, cfg, bt) -> pd.DataFrame:
     return bt.walk_forward_backtest(
         df,
@@ -254,78 +264,86 @@ def _get_backtest_cached(
     if hit and now - hit[0] < _BT_CACHE_TTL:
         return hit[2], hit[1]
 
-    result_df = _compute_backtest(df, xg_df, min_train, step, cfg, bt)
-    if result_df.empty:
-        raise ValueError("Backtest produced no predictions.")
+    with _BT_LOCK:
+        # Re-check under the lock — the warm-up thread or another request may
+        # have computed this exact key while we waited.
+        now = time.time()
+        hit = _BT_CACHE.get(cache_key)
+        if hit and now - hit[0] < _BT_CACHE_TTL:
+            return hit[2], hit[1]
 
-    metrics = _normalize_metrics(bt.evaluate(result_df, with_odds=True))
+        result_df = _compute_backtest(df, xg_df, min_train, step, cfg, bt)
+        if result_df.empty:
+            raise ValueError("Backtest produced no predictions.")
 
-    # Recent flagged value bets (most interesting for a human reviewer).
-    recent_value_bets = []
-    if not result_df.empty and "B365H" in result_df.columns:
-        from src.market import value_bets
+        metrics = _normalize_metrics(bt.evaluate(result_df, with_odds=True))
 
-        vb_df = result_df.assign(result=result_df["actual"])
-        mp = result_df[["pred_home_win", "pred_draw", "pred_away_win"]].rename(
-            columns={
-                "pred_home_win": "home_win",
-                "pred_draw": "draw",
-                "pred_away_win": "away_win",
-            }
-        )
-        vb = value_bets(vb_df, mp)
-        if not vb.empty:
-            recent_value_bets = (
-                vb.sort_values("date")
-                .tail(25)[
-                    [
-                        "date",
-                        "home_team",
-                        "away_team",
-                        "market",
-                        "model_prob",
-                        "implied_prob",
-                        "edge",
-                        "odds",
-                        "pnl",
+        # Recent flagged value bets (most interesting for a human reviewer).
+        recent_value_bets = []
+        if not result_df.empty and "B365H" in result_df.columns:
+            from src.market import value_bets
+
+            vb_df = result_df.assign(result=result_df["actual"])
+            mp = result_df[["pred_home_win", "pred_draw", "pred_away_win"]].rename(
+                columns={
+                    "pred_home_win": "home_win",
+                    "pred_draw": "draw",
+                    "pred_away_win": "away_win",
+                }
+            )
+            vb = value_bets(vb_df, mp)
+            if not vb.empty:
+                recent_value_bets = (
+                    vb.sort_values("date")
+                    .tail(25)[
+                        [
+                            "date",
+                            "home_team",
+                            "away_team",
+                            "market",
+                            "model_prob",
+                            "implied_prob",
+                            "edge",
+                            "odds",
+                            "pnl",
+                        ]
                     ]
-                ]
-                .assign(
-                    date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
-                    model_prob=lambda d: d["model_prob"].round(3),
-                    implied_prob=lambda d: d["implied_prob"].round(3),
-                    edge=lambda d: d["edge"].round(3),
-                    odds=lambda d: d["odds"].round(2),
-                    pnl=lambda d: d["pnl"].round(2),
+                    .assign(
+                        date=lambda d: d["date"].dt.strftime("%Y-%m-%d"),
+                        model_prob=lambda d: d["model_prob"].round(3),
+                        implied_prob=lambda d: d["implied_prob"].round(3),
+                        edge=lambda d: d["edge"].round(3),
+                        odds=lambda d: d["odds"].round(2),
+                        pnl=lambda d: d["pnl"].round(2),
+                    )
+                    .to_dict("records")
                 )
-                .to_dict("records")
-            )
 
-    # Monthly accuracy curve
-    result_df = result_df.sort_values("date")
-    result_df["month"] = result_df["date"].dt.to_period("M").astype(str)
-    monthly_acc = (
-        result_df.groupby("month")
-        .apply(
-            lambda g: float(
-                (
-                    g["pred_home_win"].gt(g["pred_draw"])
-                    & g["pred_home_win"].gt(g["pred_away_win"])
-                ).mean()
+        # Monthly accuracy curve
+        result_df = result_df.sort_values("date")
+        result_df["month"] = result_df["date"].dt.to_period("M").astype(str)
+        monthly_acc = (
+            result_df.groupby("month")
+            .apply(
+                lambda g: float(
+                    (
+                        g["pred_home_win"].gt(g["pred_draw"])
+                        & g["pred_home_win"].gt(g["pred_away_win"])
+                    ).mean()
+                )
             )
+            .round(4)
+            .to_dict()
         )
-        .round(4)
-        .to_dict()
-    )
 
-    payload = {
-        "metrics": metrics,
-        "n_matches": len(result_df),
-        "monthly_accuracy": monthly_acc,
-        "recent_value_bets": recent_value_bets,
-    }
-    _BT_CACHE[cache_key] = (now, payload, result_df)
-    return result_df, payload
+        payload = {
+            "metrics": metrics,
+            "n_matches": len(result_df),
+            "monthly_accuracy": monthly_acc,
+            "recent_value_bets": recent_value_bets,
+        }
+        _BT_CACHE[cache_key] = (now, payload, result_df)
+        return result_df, payload
 
 
 def _data_fingerprint(league: str) -> tuple[str, str, str]:
@@ -396,12 +414,12 @@ def dashboard(
     df = df.sort_values("date")
     latest = df["date"].max()
 
-    # ---- Standings (latest season) ----
-    last_season = df[df["date"] <= latest]
-    first_season_date = df.iloc[-1]["date"] - pd.DateOffset(years=1)
-    season_df = last_season[last_season["date"] >= first_season_date]
+    # ---- Standings (current in-progress season, full roster) ----
+    season_start = _standings_window(df)
+    season_df = df[df["date"] >= season_start]
 
-    standings = _standings(season_df)
+    standings = _standings(season_df, teams=_current_season_teams(league))
+    standings_season = f"{season_start.year}/{str(season_start.year + 1)[-2:]}"
 
     # ---- Form (last 5) for the top teams ----
     top_teams = [s["team"] for s in standings[:8]]
@@ -447,6 +465,7 @@ def dashboard(
         "n_matches": int(len(df)),
         "first_season": str(df["date"].min().date()),
         "latest_date": str(latest.date()),
+        "standings_season": standings_season,
         "standings": standings,
         "form": form,
         "recent": recent,
@@ -468,32 +487,76 @@ def dashboard(
     }
 
 
-def _standings(season_df: pd.DataFrame) -> list:
-    """Compute a simple league table (points, GD) from a season's matches."""
-    teams: dict[str, dict[str, Any]] = {}
+def _season_window_start(latest: pd.Timestamp) -> pd.Timestamp:
+    """July 1 of the European season containing ``latest`` (seasons run Aug–May).
+
+    Using ``latest - 1 year`` mixes the tail of the previous season into the
+    current league table whenever the new season has already started (e.g. La
+    Liga in mid-August), so standings were showing a stale/mixed table.
+    """
+    year = latest.year if latest.month >= 7 else latest.year - 1
+    return pd.Timestamp(year=year, month=7, day=1)
+
+
+def _current_season_start() -> pd.Timestamp:
+    """July 1 of the *current* season (anchored to today, not to the latest
+    match in the data) — so during the June-July offseason the standings show
+    the brand-new season's table instead of the just-finished one."""
+    return _season_window_start(pd.Timestamp.now())
+
+
+def _standings_window(df: pd.DataFrame) -> pd.Timestamp:
+    """Start of the season whose standings the dashboard should show.
+
+    Prefers the *current* (today-anchored) season once it has started — even
+    before any of its matches are in the data (Serie A in August shows its
+    empty 2026-27 table pre-seeded from the roster). Older data that never
+    reaches the current season (e.g. synthetic or historical-only sets) shows
+    its own latest season instead of an empty table.
+    """
+    today_start = _current_season_start()
+    prev_start = _season_window_start(today_start - pd.Timedelta(days=1))
+    latest_start = _season_window_start(df["date"].max())
+    if latest_start in (today_start, prev_start):
+        return today_start
+    return latest_start
+
+
+def _empty_standing(team: str) -> dict[str, Any]:
+    return {
+        "team": team,
+        "played": 0,
+        "won": 0,
+        "draw": 0,
+        "lost": 0,
+        "gf": 0,
+        "ga": 0,
+        "points": 0,
+    }
+
+
+def _standings(season_df: pd.DataFrame, teams: Optional[list[str]] = None) -> list:
+    """Compute a league table (points, GD) from a season's matches.
+
+    ``teams`` optionally pre-seeds clubs that haven't played yet (0 matches) so
+    a just-started season shows its full roster instead of only the pairs that
+    have kicked off. Ranks use competition ranking — clubs level on
+    (points, goal_diff, goals_for) share a rank.
+    """
+    table: dict[str, dict[str, Any]] = {}
+    for t in teams or []:
+        table.setdefault(t, _empty_standing(t))
+
     for _, r in season_df.iterrows():
         for side in ("home", "away"):
             t = r[f"{side}_team"]
-            g = teams.setdefault(
-                t,
-                {
-                    "team": t,
-                    "played": 0,
-                    "won": 0,
-                    "draw": 0,
-                    "lost": 0,
-                    "gf": 0,
-                    "ga": 0,
-                    "points": 0,
-                },
-            )
+            g = table.setdefault(t, _empty_standing(t))
             g["played"] += 1
             g["gf"] += r[f"{side}_goals"]
-            g["ga"] += r[f"{side}_goals"] if side == "away" else 0
 
         # points from the match
-        h = teams[r["home_team"]]
-        a = teams[r["away_team"]]
+        h = table[r["home_team"]]
+        a = table[r["away_team"]]
         if r["result"] == "H":
             h["won"] += 1
             a["lost"] += 1
@@ -512,17 +575,23 @@ def _standings(season_df: pd.DataFrame) -> list:
         a["ga"] += r["home_goals"]
 
     rows = []
-    for t in teams.values():
+    for standing in table.values():
         rows.append(
             {
-                **t,
-                "goal_diff": t["gf"] - t["ga"],
-                "points": t["points"],
+                **standing,
+                "goal_diff": standing["gf"] - standing["ga"],
+                "points": standing["points"],
             }
         )
     rows.sort(key=lambda x: (-x["points"], -x["goal_diff"], -x["gf"]))
+
+    # Competition ranking: equal (points, GD, GF) share a rank.
+    prev_key, prev_rank = None, 0
     for i, r in enumerate(rows, 1):
-        r["rank"] = i
+        key = (r["points"], r["goal_diff"], r["gf"])
+        if key != prev_key:
+            prev_key, prev_rank = key, i
+        r["rank"] = prev_rank
     return rows
 
 
@@ -585,13 +654,16 @@ def teams(
     all_teams = sorted(set(df["home_team"].unique()) | set(df["away_team"].unique()))
     form = _form(df, all_teams)
 
-    # Standings
-    latest = df["date"].max()
-    first_season_date = latest - pd.DateOffset(years=1)
-    season_df = df[df["date"] >= first_season_date]
-    standings = _standings(season_df)
+    # Standings (current in-progress season, full roster)
+    season_df = df[df["date"] >= _standings_window(df)]
+    standings = _standings(season_df, teams=_current_season_teams(league))
 
     xg_available = _xg_available(league)
+
+    # Roster clubs may not have played yet (promoted clubs have no rows), so
+    # union the explicit current-season roster into the selectable team list.
+    roster = set(_current_season_teams(league))
+    team_names = sorted(set(all_teams) | roster)
 
     return {
         "league": league,
@@ -608,7 +680,7 @@ def teams(
                 "dyn_defense": dyn_defense.get(t),
                 "form": form.get(t, ""),
             }
-            for t in sorted(all_teams)
+            for t in team_names
         ],
         "standings": standings,
     }
@@ -619,6 +691,9 @@ def predict(
     home: str = Query(...),
     away: str = Query(...),
     league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
+    odds_home: Optional[float] = Query(None, ge=1.0),
+    odds_draw: Optional[float] = Query(None, ge=1.0),
+    odds_away: Optional[float] = Query(None, ge=1.0),
 ):
     cfg = _cfg()
     try:
@@ -631,27 +706,38 @@ def predict(
     if xg_df is not None and not xg_df.empty:
         df = join_xg(df, xg_df)
 
+    # Optional user-supplied closing line. When provided it feeds the
+    # meta-learner's market features directly (residual-vs-market inference)
+    # and is what the Market vs Model panel compares against. The isinstance
+    # guard keeps direct calls (tests) robust when the Query default object
+    # leaks through instead of None.
+    def _valid_odds(v) -> bool:
+        return isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 1.0
+
+    user_odds = (
+        (odds_home, odds_draw, odds_away)
+        if all(_valid_odds(v) for v in (odds_home, odds_draw, odds_away))
+        else None
+    )
+
     model = _get_model_cached(league)
     try:
-        p = model.predict(home, away)
+        p = model.predict(home, away, market_odds=user_odds)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Market odds for this fixture if available (last meeting's closing line)
+    model_probs = [p["home_win"], p["draw"], p["away_win"]]
+
+    # Market line for the panel: user-supplied odds take precedence; otherwise
+    # fall back to the last meeting's closing line from the data.
     market = None
-    odds_row = df[
-        (df["home_team"] == home)
-        & (df["away_team"] == away)
-        & df["implied_home"].notna()
-    ].tail(1)
-    if not odds_row.empty:
-        odds_row = odds_row.iloc[0]
-        implied = [
-            float(odds_row["implied_home"]),
-            float(odds_row["implied_draw"]),
-            float(odds_row["implied_away"]),
-        ]
-        model_probs = [p["home_win"], p["draw"], p["away_win"]]
+    if user_odds is not None:
+        # _valid_odds guaranteed all three are finite numbers >= 1; the cast
+        # is purely for mypy (the tuple elements are still Optional[float]).
+        odds = cast(tuple[float, float, float], user_odds)
+        inv = [1.0 / o for o in odds]
+        tot = sum(inv)
+        implied = [v / tot for v in inv]
         market = {
             "implied_home": round(implied[0], 4),
             "implied_draw": round(implied[1], 4),
@@ -659,8 +745,31 @@ def predict(
             "edge_home": round(model_probs[0] - implied[0], 4),
             "edge_draw": round(model_probs[1] - implied[1], 4),
             "edge_away": round(model_probs[2] - implied[2], 4),
-            "source": "Last meeting (closing odds)",
+            "source": "Your odds",
+            "odds": list(odds),
         }
+    else:
+        odds_row = df[
+            (df["home_team"] == home)
+            & (df["away_team"] == away)
+            & df["implied_home"].notna()
+        ].tail(1)
+        if not odds_row.empty:
+            odds_row = odds_row.iloc[0]
+            implied = [
+                float(odds_row["implied_home"]),
+                float(odds_row["implied_draw"]),
+                float(odds_row["implied_away"]),
+            ]
+            market = {
+                "implied_home": round(implied[0], 4),
+                "implied_draw": round(implied[1], 4),
+                "implied_away": round(implied[2], 4),
+                "edge_home": round(model_probs[0] - implied[0], 4),
+                "edge_draw": round(model_probs[1] - implied[1], 4),
+                "edge_away": round(model_probs[2] - implied[2], 4),
+                "source": "Last meeting (closing odds)",
+            }
 
     # Dynamic expected goals from the Kalman-filtered state-space model
     dyn_expected = None
@@ -742,22 +851,50 @@ def _fixture_rows(league: str) -> list[dict]:
     return rows
 
 
-def _current_season_teams(league: str) -> list[str]:
-    """Team list for the league's *most recent* season (the ones the new season
-    inherits) — not the union across all seasons, which includes relegated clubs.
+_ROSTER_PATH = (
+    Path(__file__).resolve().parent.parent / "data" / "current_season_teams.json"
+)
 
-    The season is bounded by July 1 of the year before the latest match date
-    (European seasons run August–May, so that cutoff is safely inside the
-    most recent completed season and excludes the tail of the one before it).
+
+@functools.lru_cache(maxsize=1)
+def _load_rosters() -> dict[str, list[str]]:
+    """Explicit current-season rosters (football-data.co.uk spellings).
+
+    Optional override in ``data/current_season_teams.json`` — the authoritative
+    ˝who plays this season˝ list, which a data-driven derivation cannot know
+    before every club has kicked off (promoted clubs, relegated clubs).
     """
+    try:
+        return json.loads(_ROSTER_PATH.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def _current_season_teams(league: str) -> list[str]:
+    """Team list for the league's *current* season — the clubs the new
+    season's fixtures involve — not the union across all seasons, which
+    includes relegated clubs.
+
+    Prefers the explicit roster in ``data/current_season_teams.json`` (the real
+    promoted/relegated clubs). Without one, falls back to a data-driven list
+    from matches since July 1 of the *current* season — and, while that window
+    is too sparse to be representative (fewer than a full matchweek's worth of
+    matches), the previous season's clubs as well.
+    """
+    explicit = _load_rosters().get(league)
+    if explicit:
+        return sorted(set(explicit))
+
     cfg = _cfg()
     df = _load_cached(league, cfg.data.data_dir).sort_values("date")
-    latest = df["date"].max()
-    cutoff = pd.Timestamp(year=latest.year - 1, month=7, day=1)
-    season_df = df[df["date"] >= cutoff]
-    return sorted(
-        set(season_df["home_team"].tolist()) | set(season_df["away_team"].tolist())
-    )
+    start = _standings_window(df)
+    season_df = df[df["date"] >= start]
+    teams = set(season_df["home_team"].tolist()) | set(season_df["away_team"].tolist())
+    if len(season_df) < 15:  # < 1 full matchweek played -> most clubs unseen yet
+        prev_start = _season_window_start(start - pd.Timedelta(days=1))
+        prev = df[df["date"] >= prev_start]
+        teams |= set(prev["home_team"].tolist()) | set(prev["away_team"].tolist())
+    return sorted(teams)
 
 
 @app.get("/api/fixtures")

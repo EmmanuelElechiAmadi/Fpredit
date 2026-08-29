@@ -128,6 +128,36 @@ class TestFiltering:
         assert probs.shape == (len(m), 3)
         assert np.allclose(probs.sum(axis=1), 1.0, atol=1e-9)
 
+    def test_nan_xg_observations_fall_back_to_goals(self, matches):
+        """Current-season rows joined without xG keep NaN in the xG columns;
+        the filter must fall back to the goals observation instead of
+        NaN-poisoning the whole state vector (regression: new-season rows
+        made the xG filter emit all-NaN probabilities)."""
+        m = [dict(mm) for mm in matches]
+        for i, row in enumerate(m):
+            row["home_xg"] = max(row["home_goals"], 0.3)
+            row["away_xg"] = max(row["away_goals"], 0.3)
+        # xG columns exist (joined) but are NaN for some matches
+        m[0]["home_xg"] = m[0]["away_xg"] = float("nan")
+        m[3]["home_xg"] = m[3]["away_xg"] = np.nan
+        m[6]["home_xg"] = m[6]["away_xg"] = None
+
+        model = StateSpaceModel(q=0.005, obs_var_scale=0.5)
+        probs = model.filter_matches(m, use_xg=True)
+        assert np.isfinite(model.x).all()
+        assert np.isfinite(probs).all()
+        assert np.allclose(probs.sum(axis=1), 1.0, atol=1e-9)
+
+    def test_missing_goals_rows_skip_update(self):
+        """Unplayed fixture rows (blank/NaN scores) must not corrupt the filter."""
+        m = _strength_matches(8)
+        m[2]["home_goals"] = m[2]["away_goals"] = float("nan")
+        model = StateSpaceModel(q=0.01)
+        probs = model.filter_matches(m)
+        assert np.isfinite(model.x).all()
+        assert np.isfinite(probs).all()
+        assert np.allclose(probs.sum(axis=1), 1.0, atol=1e-9)
+
 
 class TestPrediction:
     def test_expected_goals_positive(self, matches):

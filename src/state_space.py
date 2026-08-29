@@ -33,6 +33,24 @@ from typing import Optional
 import numpy as np
 from scipy.stats import poisson
 
+
+def _finite(value) -> bool:
+    """True when ``value`` is a real finite number.
+
+    Rejects ``None``, ``NaN``, ``pd.NA`` and non-numeric values. Used so the
+    Kalman filter never ingests a NaN observation (e.g. current-season rows
+    whose xG hasn't been scraped yet, or unplayed fixture rows with blank
+    goals) — a single NaN observation poisons the whole state vector because
+    ``_recenter`` spreads it to every component.
+    """
+    if value is None:
+        return False
+    try:
+        return bool(np.isfinite(float(value)))
+    except (TypeError, ValueError):
+        return False
+
+
 _DEFAULT_MAX_GOALS = 10
 
 
@@ -81,15 +99,20 @@ class StateSpaceModel:
     def _estimate_scale(self, matches: list[dict]) -> None:
         """Estimate league baseline mu and home advantage from the data
         (skipped for whichever of the two was fixed in the constructor)."""
-        hg = np.array([m["home_goals"] for m in matches], dtype=float)
-        ag = np.array([m["away_goals"] for m in matches], dtype=float)
-        mean_h, mean_a = float(hg.mean()), float(ag.mean())
-        mean_h = max(mean_h, 1e-3)
-        mean_a = max(mean_a, 1e-3)
-        if not self._mu_fixed:
-            self.mu = np.log(mean_a)
-        if not self._ha_fixed:
-            self.home_adv = float(np.clip(np.log(mean_h / mean_a), 0.05, 0.6))
+        hg = np.array([m.get("home_goals") for m in matches], dtype=float)
+        ag = np.array([m.get("away_goals") for m in matches], dtype=float)
+        # Unplayed fixture rows (blank scores) or NaN xG rows carry no valid
+        # observation; drop them so a NaN can't leak into the league baseline.
+        valid = np.isfinite(hg) & np.isfinite(ag)
+        if valid.any():
+            hg, ag = hg[valid], ag[valid]
+            mean_h, mean_a = float(hg.mean()), float(ag.mean())
+            mean_h = max(mean_h, 1e-3)
+            mean_a = max(mean_a, 1e-3)
+            if not self._mu_fixed:
+                self.mu = np.log(mean_a)
+            if not self._ha_fixed:
+                self.home_adv = float(np.clip(np.log(mean_h / mean_a), 0.05, 0.6))
 
     def _update(
         self, obs: float, log_rate: float, obs_var_scale: float, h_row: np.ndarray
@@ -176,12 +199,18 @@ class StateSpaceModel:
             h_row_a[ai] = 1.0
             h_row_a[n + hi] = -1.0
 
-            if use_xg and "home_xg" in m and "away_xg" in m:
+            # Only feed observations that are real numbers: current-season rows
+            # joined without xG (NaN) or unplayed fixture rows (blank goals)
+            # must fall back to the goals branch — or skip the update entirely
+            # when no valid observation exists — instead of NaN-poisoning the
+            # filter state.
+            if use_xg and _finite(m.get("home_xg")) and _finite(m.get("away_xg")):
                 self._update(float(m["home_xg"]), z_h, scale, h_row_h)
                 self._update(float(m["away_xg"]), z_a, scale, h_row_a)
-            else:
+            elif _finite(m.get("home_goals")) and _finite(m.get("away_goals")):
                 self._update(float(m["home_goals"]), z_h, scale, h_row_h)
                 self._update(float(m["away_goals"]), z_a, scale, h_row_a)
+            # else: no valid observation yet — state just drifts (predict step)
 
             self._recenter(n)
 

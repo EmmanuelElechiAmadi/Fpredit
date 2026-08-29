@@ -483,7 +483,12 @@ class FootballEnsemble:
             "elo": [eh, ed, ea],
         }
         if xg_p is not None:
-            comps["xg"] = [xg_p["home_win"], xg_p["draw"], xg_p["away_win"]]
+            # Defense-in-depth: if the xG filter state is somehow non-finite,
+            # report the neutral prior instead of poisoning the JSON response.
+            comps["xg"] = [
+                v if np.isfinite(v) else _NEUTRAL
+                for v in (xg_p["home_win"], xg_p["draw"], xg_p["away_win"])
+            ]
         return {
             "home_win": result["H"],
             "draw": result["D"],

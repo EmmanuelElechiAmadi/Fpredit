@@ -1,0 +1,5 @@
+{
+  "EPL": ["Arsenal", "Aston Villa", "Bournemouth", "Brentford", "Brighton", "Chelsea", "Coventry", "Crystal Palace", "Everton", "Fulham", "Hull", "Ipswich Town", "Leeds", "Liverpool", "Man City", "Man United", "Newcastle", "Nott'm Forest", "Sunderland", "Tottenham"],
+  "LALIGA": ["Alaves", "Ath Bilbao", "Ath Madrid", "Barcelona", "Betis", "Celta", "Dep. A Coruna", "Elche", "Espanol", "Getafe", "Levante", "Malaga", "Osasuna", "Real Madrid", "Santander", "Sevilla", "Sociedad", "Valencia", "Vallecano", "Villarreal"],
+  "SERIEA": ["Atalanta", "Bologna", "Cagliari", "Como", "Fiorentina", "Frosinone", "Genoa", "Inter", "Juventus", "Lazio", "Lecce", "Milan", "Monza", "Napoli", "Parma", "Roma", "Sassuolo", "Torino", "Udinese", "Venezia"]
+}
