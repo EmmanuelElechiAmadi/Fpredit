@@ -1,3 +1,381 @@
 Date,HomeTeam,AwayTeam,Matchweek
-29/08/2026,Arsenal,Chelsea,1
-30/08/2026,Man City,Liverpool,1
+22/08/2026,Arsenal,Tottenham,1
+22/08/2026,Aston Villa,Sunderland,1
+22/08/2026,Bournemouth,Nott'm Forest,1
+22/08/2026,Brentford,Newcastle,1
+22/08/2026,Brighton,Man United,1
+22/08/2026,Chelsea,Man City,1
+22/08/2026,Coventry,Liverpool,1
+22/08/2026,Crystal Palace,Leeds,1
+22/08/2026,Everton,Ipswich Town,1
+22/08/2026,Fulham,Hull,1
+29/08/2026,Fulham,Everton,2
+29/08/2026,Hull,Crystal Palace,2
+29/08/2026,Ipswich Town,Coventry,2
+29/08/2026,Leeds,Chelsea,2
+29/08/2026,Liverpool,Brighton,2
+29/08/2026,Newcastle,Aston Villa,2
+29/08/2026,Man United,Bournemouth,2
+29/08/2026,Nott'm Forest,Tottenham,2
+29/08/2026,Sunderland,Arsenal,2
+29/08/2026,Man City,Brentford,2
+05/09/2026,Brighton,Ipswich Town,3
+05/09/2026,Crystal Palace,Everton,3
+05/09/2026,Coventry,Fulham,3
+05/09/2026,Chelsea,Hull,3
+05/09/2026,Brentford,Leeds,3
+05/09/2026,Sunderland,Newcastle,3
+05/09/2026,Aston Villa,Man City,3
+05/09/2026,Tottenham,Man United,3
+05/09/2026,Arsenal,Nott'm Forest,3
+05/09/2026,Bournemouth,Liverpool,3
+12/09/2026,Crystal Palace,Coventry,4
+12/09/2026,Everton,Chelsea,4
+12/09/2026,Fulham,Brighton,4
+12/09/2026,Hull,Brentford,4
+12/09/2026,Ipswich Town,Bournemouth,4
+12/09/2026,Leeds,Aston Villa,4
+12/09/2026,Man City,Sunderland,4
+12/09/2026,Man United,Nott'm Forest,4
+12/09/2026,Newcastle,Arsenal,4
+12/09/2026,Liverpool,Tottenham,4
+19/09/2026,Bournemouth,Fulham,5
+19/09/2026,Chelsea,Coventry,5
+19/09/2026,Brighton,Crystal Palace,5
+19/09/2026,Aston Villa,Hull,5
+19/09/2026,Brentford,Everton,5
+19/09/2026,Sunderland,Leeds,5
+19/09/2026,Nott'm Forest,Liverpool,5
+19/09/2026,Tottenham,Ipswich Town,5
+19/09/2026,Newcastle,Man City,5
+19/09/2026,Arsenal,Man United,5
+26/09/2026,Chelsea,Brighton,6
+26/09/2026,Coventry,Brentford,6
+26/09/2026,Crystal Palace,Bournemouth,6
+26/09/2026,Everton,Aston Villa,6
+26/09/2026,Fulham,Tottenham,6
+26/09/2026,Hull,Sunderland,6
+26/09/2026,Ipswich Town,Nott'm Forest,6
+26/09/2026,Leeds,Newcastle,6
+26/09/2026,Liverpool,Man United,6
+26/09/2026,Man City,Arsenal,6
+03/10/2026,Bournemouth,Chelsea,7
+03/10/2026,Aston Villa,Coventry,7
+03/10/2026,Tottenham,Crystal Palace,7
+03/10/2026,Sunderland,Everton,7
+03/10/2026,Brentford,Brighton,7
+03/10/2026,Newcastle,Hull,7
+03/10/2026,Man United,Ipswich Town,7
+03/10/2026,Man City,Leeds,7
+03/10/2026,Arsenal,Liverpool,7
+03/10/2026,Nott'm Forest,Fulham,7
+10/10/2026,Brighton,Aston Villa,8
+10/10/2026,Chelsea,Tottenham,8
+10/10/2026,Coventry,Sunderland,8
+10/10/2026,Crystal Palace,Nott'm Forest,8
+10/10/2026,Brentford,Bournemouth,8
+10/10/2026,Fulham,Man United,8
+10/10/2026,Hull,Man City,8
+10/10/2026,Ipswich Town,Liverpool,8
+10/10/2026,Leeds,Arsenal,8
+10/10/2026,Everton,Newcastle,8
+17/10/2026,Aston Villa,Bournemouth,9
+17/10/2026,Tottenham,Brentford,9
+17/10/2026,Sunderland,Brighton,9
+17/10/2026,Nott'm Forest,Chelsea,9
+17/10/2026,Newcastle,Coventry,9
+17/10/2026,Man United,Crystal Palace,9
+17/10/2026,Liverpool,Fulham,9
+17/10/2026,Leeds,Hull,9
+17/10/2026,Arsenal,Ipswich Town,9
+17/10/2026,Man City,Everton,9
+24/10/2026,Brighton,Newcastle,10
+24/10/2026,Aston Villa,Tottenham,10
+24/10/2026,Bournemouth,Sunderland,10
+24/10/2026,Brentford,Nott'm Forest,10
+24/10/2026,Chelsea,Man United,10
+24/10/2026,Fulham,Ipswich Town,10
+24/10/2026,Crystal Palace,Liverpool,10
+24/10/2026,Everton,Leeds,10
+24/10/2026,Coventry,Man City,10
+24/10/2026,Hull,Arsenal,10
+31/10/2026,Sunderland,Tottenham,11
+31/10/2026,Nott'm Forest,Aston Villa,11
+31/10/2026,Newcastle,Bournemouth,11
+31/10/2026,Man United,Brentford,11
+31/10/2026,Man City,Brighton,11
+31/10/2026,Leeds,Coventry,11
+31/10/2026,Ipswich Town,Crystal Palace,11
+31/10/2026,Hull,Everton,11
+31/10/2026,Arsenal,Fulham,11
+31/10/2026,Liverpool,Chelsea,11
+07/11/2026,Bournemouth,Man City,12
+07/11/2026,Sunderland,Nott'm Forest,12
+07/11/2026,Tottenham,Newcastle,12
+07/11/2026,Aston Villa,Man United,12
+07/11/2026,Brentford,Liverpool,12
+07/11/2026,Brighton,Leeds,12
+07/11/2026,Chelsea,Ipswich Town,12
+07/11/2026,Coventry,Hull,12
+07/11/2026,Crystal Palace,Fulham,12
+07/11/2026,Everton,Arsenal,12
+14/11/2026,Newcastle,Nott'm Forest,13
+14/11/2026,Man United,Sunderland,13
+14/11/2026,Man City,Tottenham,13
+14/11/2026,Liverpool,Aston Villa,13
+14/11/2026,Leeds,Bournemouth,13
+14/11/2026,Ipswich Town,Brentford,13
+14/11/2026,Hull,Brighton,13
+14/11/2026,Fulham,Chelsea,13
+14/11/2026,Everton,Coventry,13
+14/11/2026,Arsenal,Crystal Palace,13
+21/11/2026,Nott'm Forest,Man City,14
+21/11/2026,Sunderland,Liverpool,14
+21/11/2026,Tottenham,Leeds,14
+21/11/2026,Aston Villa,Ipswich Town,14
+21/11/2026,Newcastle,Man United,14
+21/11/2026,Brentford,Fulham,14
+21/11/2026,Brighton,Everton,14
+21/11/2026,Chelsea,Crystal Palace,14
+21/11/2026,Coventry,Arsenal,14
+21/11/2026,Bournemouth,Hull,14
+28/11/2026,Man City,Man United,15
+28/11/2026,Liverpool,Newcastle,15
+28/11/2026,Leeds,Nott'm Forest,15
+28/11/2026,Ipswich Town,Sunderland,15
+28/11/2026,Hull,Tottenham,15
+28/11/2026,Fulham,Aston Villa,15
+28/11/2026,Everton,Bournemouth,15
+28/11/2026,Crystal Palace,Brentford,15
+28/11/2026,Coventry,Brighton,15
+28/11/2026,Arsenal,Chelsea,15
+05/12/2026,Man United,Leeds,16
+05/12/2026,Newcastle,Ipswich Town,16
+05/12/2026,Nott'm Forest,Hull,16
+05/12/2026,Sunderland,Fulham,16
+05/12/2026,Man City,Liverpool,16
+05/12/2026,Aston Villa,Crystal Palace,16
+05/12/2026,Bournemouth,Coventry,16
+05/12/2026,Brentford,Chelsea,16
+05/12/2026,Brighton,Arsenal,16
+05/12/2026,Tottenham,Everton,16
+12/12/2026,Ipswich Town,Man City,17
+12/12/2026,Hull,Man United,17
+12/12/2026,Fulham,Newcastle,17
+12/12/2026,Everton,Nott'm Forest,17
+12/12/2026,Leeds,Liverpool,17
+12/12/2026,Coventry,Tottenham,17
+12/12/2026,Chelsea,Aston Villa,17
+12/12/2026,Brighton,Bournemouth,17
+12/12/2026,Arsenal,Brentford,17
+12/12/2026,Crystal Palace,Sunderland,17
+19/12/2026,Leeds,Ipswich Town,18
+19/12/2026,Liverpool,Hull,18
+19/12/2026,Man City,Fulham,18
+19/12/2026,Man United,Everton,18
+19/12/2026,Newcastle,Crystal Palace,18
+19/12/2026,Nott'm Forest,Coventry,18
+19/12/2026,Tottenham,Brighton,18
+19/12/2026,Aston Villa,Brentford,18
+19/12/2026,Bournemouth,Arsenal,18
+19/12/2026,Sunderland,Chelsea,18
+26/12/2026,Crystal Palace,Man City,19
+26/12/2026,Fulham,Leeds,19
+26/12/2026,Everton,Liverpool,19
+26/12/2026,Coventry,Man United,19
+26/12/2026,Hull,Ipswich Town,19
+26/12/2026,Brighton,Nott'm Forest,19
+26/12/2026,Brentford,Sunderland,19
+26/12/2026,Bournemouth,Tottenham,19
+26/12/2026,Arsenal,Aston Villa,19
+26/12/2026,Chelsea,Newcastle,19
+09/01/2027,Hull,Fulham,20
+09/01/2027,Ipswich Town,Everton,20
+09/01/2027,Leeds,Crystal Palace,20
+09/01/2027,Liverpool,Coventry,20
+09/01/2027,Man City,Chelsea,20
+09/01/2027,Man United,Brighton,20
+09/01/2027,Newcastle,Brentford,20
+09/01/2027,Nott'm Forest,Bournemouth,20
+09/01/2027,Sunderland,Aston Villa,20
+09/01/2027,Tottenham,Arsenal,20
+16/01/2027,Crystal Palace,Hull,21
+16/01/2027,Coventry,Ipswich Town,21
+16/01/2027,Chelsea,Leeds,21
+16/01/2027,Brighton,Liverpool,21
+16/01/2027,Everton,Fulham,21
+16/01/2027,Bournemouth,Man United,21
+16/01/2027,Aston Villa,Newcastle,21
+16/01/2027,Tottenham,Nott'm Forest,21
+16/01/2027,Arsenal,Sunderland,21
+16/01/2027,Brentford,Man City,21
+23/01/2027,Fulham,Coventry,22
+23/01/2027,Hull,Chelsea,22
+23/01/2027,Ipswich Town,Brighton,22
+23/01/2027,Leeds,Brentford,22
+23/01/2027,Everton,Crystal Palace,22
+23/01/2027,Man City,Aston Villa,22
+23/01/2027,Man United,Tottenham,22
+23/01/2027,Newcastle,Sunderland,22
+23/01/2027,Nott'm Forest,Arsenal,22
+23/01/2027,Liverpool,Bournemouth,22
+30/01/2027,Coventry,Crystal Palace,23
+30/01/2027,Chelsea,Everton,23
+30/01/2027,Brighton,Fulham,23
+30/01/2027,Brentford,Hull,23
+30/01/2027,Bournemouth,Ipswich Town,23
+30/01/2027,Aston Villa,Leeds,23
+30/01/2027,Sunderland,Man City,23
+30/01/2027,Nott'm Forest,Man United,23
+30/01/2027,Arsenal,Newcastle,23
+30/01/2027,Tottenham,Liverpool,23
+06/02/2027,Fulham,Bournemouth,24
+06/02/2027,Coventry,Chelsea,24
+06/02/2027,Crystal Palace,Brighton,24
+06/02/2027,Everton,Brentford,24
+06/02/2027,Hull,Aston Villa,24
+06/02/2027,Ipswich Town,Tottenham,24
+06/02/2027,Leeds,Sunderland,24
+06/02/2027,Liverpool,Nott'm Forest,24
+06/02/2027,Man City,Newcastle,24
+06/02/2027,Man United,Arsenal,24
+13/02/2027,Brighton,Chelsea,25
+13/02/2027,Brentford,Coventry,25
+13/02/2027,Bournemouth,Crystal Palace,25
+13/02/2027,Aston Villa,Everton,25
+13/02/2027,Tottenham,Fulham,25
+13/02/2027,Nott'm Forest,Ipswich Town,25
+13/02/2027,Newcastle,Leeds,25
+13/02/2027,Man United,Liverpool,25
+13/02/2027,Arsenal,Man City,25
+13/02/2027,Sunderland,Hull,25
+20/02/2027,Crystal Palace,Tottenham,26
+20/02/2027,Brighton,Brentford,26
+20/02/2027,Chelsea,Bournemouth,26
+20/02/2027,Coventry,Aston Villa,26
+20/02/2027,Everton,Sunderland,26
+20/02/2027,Liverpool,Arsenal,26
+20/02/2027,Hull,Newcastle,26
+20/02/2027,Ipswich Town,Man United,26
+20/02/2027,Leeds,Man City,26
+20/02/2027,Fulham,Nott'm Forest,26
+27/02/2027,Sunderland,Coventry,27
+27/02/2027,Bournemouth,Brentford,27
+27/02/2027,Aston Villa,Brighton,27
+27/02/2027,Tottenham,Chelsea,27
+27/02/2027,Nott'm Forest,Crystal Palace,27
+27/02/2027,Arsenal,Leeds,27
+27/02/2027,Man United,Fulham,27
+27/02/2027,Man City,Hull,27
+27/02/2027,Liverpool,Ipswich Town,27
+27/02/2027,Newcastle,Everton,27
+06/03/2027,Bournemouth,Aston Villa,28
+06/03/2027,Brentford,Tottenham,28
+06/03/2027,Brighton,Sunderland,28
+06/03/2027,Chelsea,Nott'm Forest,28
+06/03/2027,Coventry,Newcastle,28
+06/03/2027,Everton,Man City,28
+06/03/2027,Fulham,Liverpool,28
+06/03/2027,Hull,Leeds,28
+06/03/2027,Ipswich Town,Arsenal,28
+06/03/2027,Crystal Palace,Man United,28
+13/03/2027,Newcastle,Brighton,29
+13/03/2027,Sunderland,Bournemouth,29
+13/03/2027,Nott'm Forest,Brentford,29
+13/03/2027,Tottenham,Aston Villa,29
+13/03/2027,Man United,Chelsea,29
+13/03/2027,Leeds,Everton,29
+13/03/2027,Liverpool,Crystal Palace,29
+13/03/2027,Ipswich Town,Fulham,29
+13/03/2027,Arsenal,Hull,29
+13/03/2027,Man City,Coventry,29
+20/03/2027,Tottenham,Sunderland,30
+20/03/2027,Aston Villa,Nott'm Forest,30
+20/03/2027,Bournemouth,Newcastle,30
+20/03/2027,Brentford,Man United,30
+20/03/2027,Brighton,Man City,30
+20/03/2027,Coventry,Leeds,30
+20/03/2027,Crystal Palace,Ipswich Town,30
+20/03/2027,Everton,Hull,30
+20/03/2027,Fulham,Arsenal,30
+20/03/2027,Chelsea,Liverpool,30
+27/03/2027,Man City,Bournemouth,31
+27/03/2027,Nott'm Forest,Sunderland,31
+27/03/2027,Newcastle,Tottenham,31
+27/03/2027,Man United,Aston Villa,31
+27/03/2027,Liverpool,Brentford,31
+27/03/2027,Arsenal,Everton,31
+27/03/2027,Ipswich Town,Chelsea,31
+27/03/2027,Hull,Coventry,31
+27/03/2027,Fulham,Crystal Palace,31
+27/03/2027,Leeds,Brighton,31
+03/04/2027,Aston Villa,Liverpool,32
+03/04/2027,Nott'm Forest,Newcastle,32
+03/04/2027,Sunderland,Man United,32
+03/04/2027,Tottenham,Man City,32
+03/04/2027,Bournemouth,Leeds,32
+03/04/2027,Crystal Palace,Arsenal,32
+03/04/2027,Brighton,Hull,32
+03/04/2027,Chelsea,Fulham,32
+03/04/2027,Coventry,Everton,32
+03/04/2027,Brentford,Ipswich Town,32
+10/04/2027,Man United,Newcastle,33
+10/04/2027,Man City,Nott'm Forest,33
+10/04/2027,Liverpool,Sunderland,33
+10/04/2027,Leeds,Tottenham,33
+10/04/2027,Ipswich Town,Aston Villa,33
+10/04/2027,Fulham,Brentford,33
+10/04/2027,Everton,Brighton,33
+10/04/2027,Crystal Palace,Chelsea,33
+10/04/2027,Arsenal,Coventry,33
+10/04/2027,Hull,Bournemouth,33
+17/04/2027,Sunderland,Ipswich Town,34
+17/04/2027,Newcastle,Liverpool,34
+17/04/2027,Nott'm Forest,Leeds,34
+17/04/2027,Man United,Man City,34
+17/04/2027,Tottenham,Hull,34
+17/04/2027,Brentford,Crystal Palace,34
+17/04/2027,Bournemouth,Everton,34
+17/04/2027,Brighton,Coventry,34
+17/04/2027,Chelsea,Arsenal,34
+17/04/2027,Aston Villa,Fulham,34
+24/04/2027,Liverpool,Man City,35
+24/04/2027,Leeds,Man United,35
+24/04/2027,Ipswich Town,Newcastle,35
+24/04/2027,Hull,Nott'm Forest,35
+24/04/2027,Fulham,Sunderland,35
+24/04/2027,Everton,Tottenham,35
+24/04/2027,Crystal Palace,Aston Villa,35
+24/04/2027,Coventry,Bournemouth,35
+24/04/2027,Chelsea,Brentford,35
+24/04/2027,Arsenal,Brighton,35
+01/05/2027,Man City,Ipswich Town,36
+01/05/2027,Liverpool,Leeds,36
+01/05/2027,Newcastle,Fulham,36
+01/05/2027,Nott'm Forest,Everton,36
+01/05/2027,Man United,Hull,36
+01/05/2027,Tottenham,Coventry,36
+01/05/2027,Aston Villa,Chelsea,36
+01/05/2027,Bournemouth,Brighton,36
+01/05/2027,Brentford,Arsenal,36
+01/05/2027,Sunderland,Crystal Palace,36
+08/05/2027,Ipswich Town,Leeds,37
+08/05/2027,Hull,Liverpool,37
+08/05/2027,Everton,Man United,37
+08/05/2027,Crystal Palace,Newcastle,37
+08/05/2027,Fulham,Man City,37
+08/05/2027,Chelsea,Sunderland,37
+08/05/2027,Brighton,Tottenham,37
+08/05/2027,Brentford,Aston Villa,37
+08/05/2027,Arsenal,Bournemouth,37
+08/05/2027,Coventry,Nott'm Forest,37
+15/05/2027,Leeds,Fulham,38
+15/05/2027,Aston Villa,Arsenal,38
+15/05/2027,Tottenham,Bournemouth,38
+15/05/2027,Sunderland,Brentford,38
+15/05/2027,Nott'm Forest,Brighton,38
+15/05/2027,Newcastle,Chelsea,38
+15/05/2027,Man United,Coventry,38
+15/05/2027,Man City,Crystal Palace,38
+15/05/2027,Liverpool,Everton,38
+15/05/2027,Ipswich Town,Hull,38

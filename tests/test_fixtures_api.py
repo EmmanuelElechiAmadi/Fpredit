@@ -5,6 +5,7 @@ file I/O are redirected to synthetic/in-memory paths so no real data or model
 fits are touched.
 """
 
+import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -23,6 +24,9 @@ def client(monkeypatch, tmp_path):
     league_df = generate_synthetic_league(n_teams=6, n_seasons=1)
     monkeypatch.setattr(main, "_warm_caches", lambda: None)  # skip model warm-up
     monkeypatch.setattr(main, "_load_rosters", lambda: {})  # no explicit roster
+    # Pin the wall clock so the add-fixture "no past dates" rule is stable on
+    # any real run date: 2026-08-01 is then "past", 2026-08-29 is "upcoming".
+    monkeypatch.setattr(main, "_now", lambda: pd.Timestamp("2026-08-15"))
     monkeypatch.setattr(main, "_load_cached", lambda league, raw_dir: league_df)
     monkeypatch.setattr(
         main,
@@ -391,3 +395,246 @@ class TestPredictOdds:
             odds_away=4.0,
         )
         assert d["market"] is None
+
+
+class TestStandingsSnapshot:
+    """Authoritative league-table snapshots (data/standings/<CODE>/<season>.json)
+    override the results-computed table for the leagues/current seasons that
+    have them — the web UI shows the official posted table instead of a table
+    built from a results CSV that may lag by several gameweeks."""
+
+    def _write_snapshot(self, dir_path, code, rows, as_of="2026-09-06"):
+        folder = dir_path / code
+        folder.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "league": "EPL",
+            "season": "2026-27",
+            "as_of": as_of,
+            "rows": rows,
+        }
+        (folder / "2026-27.json").write_text(json.dumps(payload))
+
+    def test_snapshot_takes_precedence_over_results(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(main, "_STANDINGS_DIR", tmp_path)
+        self._write_snapshot(
+            tmp_path,
+            "E0",
+            [
+                {
+                    "position": 1,
+                    "team": "Team A",
+                    "played": 3,
+                    "won": 3,
+                    "draw": 0,
+                    "lost": 0,
+                    "gf": 7,
+                    "ga": 2,
+                    "goal_diff": 5,
+                    "points": 9,
+                },
+                {
+                    "position": 2,
+                    "team": "Team B",
+                    "played": 3,
+                    "won": 0,
+                    "draw": 0,
+                    "lost": 3,
+                    "gf": 0,
+                    "ga": 5,
+                    "goal_diff": -5,
+                    "points": 0,
+                },
+            ],
+        )
+        # A results row that contradicts the snapshot (Team B beat Team A) must
+        # NOT leak into the standings while the snapshot is present.
+        season_df = pd.DataFrame(
+            [
+                {
+                    "date": pd.Timestamp("2026-08-21"),
+                    "home_team": "Team B",
+                    "away_team": "Team A",
+                    "home_goals": 1,
+                    "away_goals": 0,
+                    "result": "H",
+                }
+            ]
+        )
+        rows, meta = main._display_standings(
+            "EPL", pd.Timestamp("2026-07-01"), season_df
+        )
+        assert [r["team"] for r in rows] == ["Team A", "Team B"]
+        assert rows[0]["points"] == 9 and rows[0]["rank"] == 1
+        assert meta["as_of"] == "2026-09-06"
+
+    def test_falls_back_to_results_without_snapshot(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(main, "_STANDINGS_DIR", tmp_path)  # empty dir
+        season_df = pd.DataFrame(
+            [
+                {
+                    "date": pd.Timestamp("2026-08-21"),
+                    "home_team": "Team A",
+                    "away_team": "Team B",
+                    "home_goals": 2,
+                    "away_goals": 0,
+                    "result": "H",
+                }
+            ]
+        )
+        rows, meta = main._display_standings(
+            "EPL", pd.Timestamp("2026-07-01"), season_df
+        )
+        assert meta["as_of"] is None and meta["source"] == "results"
+        assert rows[0]["team"] == "Team A" and rows[0]["points"] == 3
+
+    def test_other_seasons_do_not_use_snapshot(self, tmp_path, monkeypatch):
+        # A snapshot for 2026-27 must not leak into an older season's table.
+        monkeypatch.setattr(main, "_STANDINGS_DIR", tmp_path)
+        self._write_snapshot(tmp_path, "E0", [{"position": 1, "team": "Team A"}])
+        rows, meta = main._display_standings(
+            "EPL", pd.Timestamp("2025-07-01"), pd.DataFrame()
+        )
+        assert meta["source"] == "results"
+        assert rows == []
+
+    def test_shipped_snapshots_are_complete(self):
+        # The shipped data/standings snapshots parse and cover a full 20-club
+        # table in official-table order (top club first).
+        for league, code, top in [
+            ("EPL", "E0", "Man City"),
+            ("LALIGA", "SP1", "Barcelona"),
+            ("SERIEA", "I1", "Roma"),
+        ]:
+            snap = main._load_standings_snapshot(league, pd.Timestamp("2026-07-01"))
+            assert snap is not None, f"missing shipped snapshot for {league}"
+            assert snap["as_of"] == "2026-09-06"
+            assert len(snap["rows"]) == 20
+            assert snap["rows"][0]["team"] == top
+            assert [r["rank"] for r in snap["rows"]] == list(range(1, 21))
+            for r in snap["rows"]:
+                assert r["goal_diff"] == r["gf"] - r["ga"]
+
+
+def _match(date, home, away, hg, ag, result):
+    return {
+        "date": pd.Timestamp(date),
+        "home_team": home,
+        "away_team": away,
+        "home_goals": hg,
+        "away_goals": ag,
+        "result": result,
+    }
+
+
+class TestSnapshotReconciliation:
+    """When an official snapshot and the results CSV coexist the app must warn
+    when one source is older than — or flat-out contradicts — the other. The
+    snapshot still wins for display (it is the authoritative posted table); the
+    warning exists to tell the user which source is actually driving the panel
+    and which clubs disagree."""
+
+    @staticmethod
+    def _snapshot(as_of="2026-09-06"):
+        return {
+            "as_of": as_of,
+            "rows": [
+                {
+                    "position": 1,
+                    "team": "Team A",
+                    "played": 3,
+                    "won": 3,
+                    "draw": 0,
+                    "lost": 0,
+                    "gf": 7,
+                    "ga": 2,
+                    "goal_diff": 5,
+                    "points": 9,
+                },
+                {
+                    "position": 2,
+                    "team": "Team B",
+                    "played": 3,
+                    "won": 1,
+                    "draw": 1,
+                    "lost": 1,
+                    "gf": 4,
+                    "ga": 4,
+                    "goal_diff": 0,
+                    "points": 4,
+                },
+            ],
+        }
+
+    def _display(self, tmp_path, monkeypatch, season_df, as_of="2026-09-06"):
+        monkeypatch.setattr(main, "_STANDINGS_DIR", tmp_path)
+        folder = tmp_path / "E0"
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "2026-27.json").write_text(
+            json.dumps({"as_of": as_of, "rows": self._snapshot(as_of)["rows"]})
+        )
+        return main._display_standings("EPL", pd.Timestamp("2026-07-01"), season_df)
+
+    def test_consistent_sources_no_warning(self, tmp_path, monkeypatch):
+        # The CSV fully covers Team A and agrees with the snapshot; Team B is
+        # only partly covered (played 1 vs 3) so it is legitimately skipped.
+        season_df = pd.DataFrame(
+            [
+                _match("2026-08-22", "Team A", "Team B", 2, 0, "H"),
+                _match("2026-08-29", "Team A", "Team C", 3, 1, "H"),
+                _match("2026-09-05", "Team A", "Team D", 2, 1, "H"),
+                _match("2026-09-05", "Team B", "Team E", 1, 1, "D"),
+            ]
+        )
+        rows, meta = self._display(tmp_path, monkeypatch, season_df)
+        assert meta["as_of"] == "2026-09-06"
+        assert meta["results_through"] == "2026-09-05"
+        assert meta["warning"] is None
+        assert rows[0]["team"] == "Team A"  # snapshot still drives the panel
+
+    def test_snapshot_older_than_results_warns(self, tmp_path, monkeypatch):
+        # Results dated after the snapshot's as-of date -> the snapshot is stale.
+        season_df = pd.DataFrame(
+            [
+                _match("2026-08-22", "Team A", "Team B", 2, 0, "H"),
+                _match("2026-08-29", "Team A", "Team C", 3, 1, "H"),
+                _match("2026-09-05", "Team A", "Team D", 2, 1, "H"),
+            ]
+        )
+        _, meta = self._display(tmp_path, monkeypatch, season_df, as_of="2026-09-01")
+        assert meta["warning"] is not None
+        assert "2026-09-01" in meta["warning"] and "2026-09-05" in meta["warning"]
+
+    def test_contradicting_results_warn(self, tmp_path, monkeypatch):
+        # Team A's three results are all in the CSV and one is a loss — the
+        # snapshot says three wins. Fully-covered disagreement must be flagged.
+        season_df = pd.DataFrame(
+            [
+                _match("2026-08-22", "Team A", "Team B", 2, 0, "H"),
+                _match("2026-08-29", "Team A", "Team C", 3, 1, "H"),
+                _match("2026-09-05", "Team B", "Team A", 1, 0, "H"),
+            ]
+        )
+        _, meta = self._display(tmp_path, monkeypatch, season_df)
+        assert meta["warning"] is not None
+        assert "Team A" in meta["warning"]
+
+    def test_partial_csv_not_flagged_as_contradiction(self, tmp_path, monkeypatch):
+        # Only Team A's first match is in the CSV (played 1 vs 3 in the
+        # snapshot): coverage is incomplete, so no false "contradiction" — the
+        # results file simply lags the real world.
+        season_df = pd.DataFrame([_match("2026-08-22", "Team A", "Team B", 2, 0, "H")])
+        _, meta = self._display(tmp_path, monkeypatch, season_df)
+        assert meta["warning"] is None
+
+    def test_results_source_meta(self, tmp_path, monkeypatch):
+        # No snapshot -> the results-computed meta says so and carries the CSV's
+        # newest date so the UI can label the panel accurately.
+        monkeypatch.setattr(main, "_STANDINGS_DIR", tmp_path)
+        season_df = pd.DataFrame([_match("2026-08-22", "Team A", "Team B", 2, 0, "H")])
+        rows, meta = main._display_standings(
+            "EPL", pd.Timestamp("2026-07-01"), season_df
+        )
+        assert meta["source"] == "results" and meta["as_of"] is None
+        assert meta["results_through"] == "2026-08-22"
+        assert meta["warning"] is None
+        assert rows[0]["team"] == "Team A"

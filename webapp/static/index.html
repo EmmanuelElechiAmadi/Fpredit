@@ -54,11 +54,13 @@
     </header>
 
     <div id="view-dashboard" class="view active">
+      <p class="data-freshness" id="dataFreshness" hidden></p>
       <div class="stat-cards" id="dashStats"></div>
       <div class="grid-2">
         <div class="card">
-          <h3>Standings <span class="card-sub" id="standingsSeason"></span></h3>
+          <h3>Standings <span class="badge official" id="standingsOfficial" hidden>Official table</span> <span class="card-sub" id="standingsSeason"></span></h3>
           <div class="table-wrap"><table id="standingsTable" class="table"></table></div>
+          <p id="standingsNote" class="standings-note muted small" hidden></p>
         </div>
         <div class="card">
           <h3>Outcome Distribution</h3>

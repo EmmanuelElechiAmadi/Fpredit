@@ -91,6 +91,22 @@ ensemble on any of them:
   matches, 38 matchweeks) as an explicit stand-in, then replace rows once the
   real fixtures are out.
 
+All three leagues currently ship with **generated placeholder schedules** in
+`data/fixtures/<LEAGUE_CODE>/2026-27.csv` (GW1…GW38, one matchweek per week from
+each league's real opening Saturday) so the Fixtures view works immediately.
+These are *explicit stand-ins* — the pairings are synthetic (circle method over
+the league's current roster) and are **not** the official lists. Drop the real
+football-data.co.uk CSV over the file when it is posted (their native
+`Date,HomeTeam,AwayTeam,…` layout is understood automatically). Past-dated rows
+are filtered out of the *upcoming* view automatically, so stale placeholder
+rounds never masquerade as live predictions — but keep `data/raw/` results and
+the standings snapshots in sync once real matches land. Regenerate all three
+placeholders (e.g. after a roster change) with:
+
+```bash
+python3 scripts/generate_placeholder_fixtures.py
+```
+
 Newly promoted / unknown teams are flagged with a *new* badge and predicted
 from the league-mean prior (the market features then carry the fixture when
 odds are supplied).
@@ -279,6 +295,48 @@ webapp/static/     single-page frontend (index.html, app.js, styles.css)
   (Sharpe, max drawdown, CVaR, ROI, profit units).
 - **League Compare** — per-league log loss / Brier plus residual log loss, edge
   correlation and Kelly Sharpe/ROI across leagues.
+
+## Standings snapshots (posted league tables)
+
+Standings are normally computed from the results CSVs in `data/raw/`. Right
+after a new season starts that CSV can lag the real world by several
+gameweeks, so the app also accepts **authoritative standings snapshots** — the
+official league table, posted as-is:
+
+```
+data/standings/E0/2026-27.json
+data/standings/SP1/2026-27.json
+data/standings/I1/2026-27.json
+```
+
+When a snapshot exists for the league's current season, the Dashboard and Team
+Intelligence standings show that table verbatim (the card notes `as of …` and
+the file's `source`); leagues/seasons without a snapshot fall back to the
+results-computed table. This is a *display* source — the models still train on
+the match results in `data/raw/`, so paste the results in too once you have
+them.
+
+The Dashboard shows a one-line **data-freshness banner** so it is always clear
+which source is driving each panel — e.g. *"Results through 21 Aug 2026 ·
+Standings: official table as of 6 Sep 2026"* — and it **auto-reconciles** the
+two sources: if a snapshot's `as_of` is older than the newest result already in
+the CSV, or the CSV fully covers a club's matches yet disagrees with the posted
+row, a warning appears under the standings table (clubs the CSV has not fully
+covered are skipped — a lagging results file legitimately shows fewer matches
+than a posted table). The snapshot still drives the table; the warning exists so
+you know the data underneath no longer agrees with it.
+
+Update a snapshot by pasting the league table into a file and running:
+
+```
+python3 scripts/import_standings.py --input table.txt --as-of 2026-09-06
+cat table.txt | python3 scripts/import_standings.py
+```
+
+The importer auto-detects the league from the table title ("Premier League",
+"Spanish La Liga", "Serie A"), accepts the copy-pasted website layout (each
+row split across lines) or one row per line, and maps display names onto the
+football-data spellings the rest of the project uses.
 
 ## Known limitations / future work
 

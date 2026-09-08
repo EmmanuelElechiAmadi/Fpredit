@@ -99,6 +99,16 @@ def _cfg():
     return load_config()
 
 
+def _now() -> pd.Timestamp:
+    """Current wall-clock date, normalized to midnight.
+
+    Central seam for date-sensitive rules (the add-fixture "no past dates"
+    check) so tests can monkeypatch the clock and the suite stays green on any
+    real-world date.
+    """
+    return pd.Timestamp.now().normalize()
+
+
 def _league_meta(league: str) -> dict:
     return {
         "EPL": {"label": "Premier League", "code": "E0", "country": "England"},
@@ -418,7 +428,9 @@ def dashboard(
     season_start = _standings_window(df)
     season_df = df[df["date"] >= season_start]
 
-    standings = _standings(season_df, teams=_current_season_teams(league))
+    standings, standings_meta = _display_standings(
+        league, season_start, season_df, _current_season_teams(league)
+    )
     standings_season = f"{season_start.year}/{str(season_start.year + 1)[-2:]}"
 
     # ---- Form (last 5) for the top teams ----
@@ -467,6 +479,10 @@ def dashboard(
         "latest_date": str(latest.date()),
         "standings_season": standings_season,
         "standings": standings,
+        "standings_as_of": standings_meta.get("as_of"),
+        "standings_source": standings_meta.get("source"),
+        "standings_results_through": standings_meta.get("results_through"),
+        "standings_warning": standings_meta.get("warning"),
         "form": form,
         "recent": recent,
         "goals_per_game_over_time": {
@@ -615,6 +631,189 @@ def _form(df: pd.DataFrame, teams: list, n=5) -> dict:
     return out
 
 
+# Authoritative standings snapshots: data/standings/<LEAGUE_CODE>/<season>.json.
+# When a snapshot exists for the league's current season it *is* the league
+# table (posted standings, usually ahead of the results CSV); otherwise the
+# table is computed from match results via :func:`_standings`.
+_STANDINGS_DIR = Path(__file__).resolve().parent.parent / "data" / "standings"
+
+
+def _season_code(season_start: pd.Timestamp) -> str:
+    """Season file label for a standings window: 2026-07-01 -> '2026-27'."""
+    return f"{season_start.year}-{(season_start.year + 1) % 100:02d}"
+
+
+def _load_standings_snapshot(league: str, season_start: pd.Timestamp) -> Optional[dict]:
+    """Load the authoritative league-table snapshot for a season, or None.
+
+    File layout::
+
+        data/standings/E0/2026-27.json
+        data/standings/SP1/2026-27.json
+
+    JSON shape::
+
+        {
+          "league": "EPL",
+          "season": "2026-27",
+          "as_of": "2026-09-06",
+          "source": "Premier League table ...",
+          "rows": [
+            {"position": 1, "team": "Man City", "played": 3, "won": 3,
+             "draw": 0, "lost": 0, "gf": 7, "ga": 2,
+             "goal_diff": 5, "points": 9},
+            ...
+          ]
+        }
+
+    ``rank`` falls back to the stored ``position`` (the official table's order).
+    """
+    season = _season_code(season_start)
+    path = _STANDINGS_DIR / LEAGUE_CODES[league] / f"{season}.json"
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    rows = []
+    for i, r in enumerate(data.get("rows", []), 1):
+        gf = int(r.get("gf", r.get("goals_for", 0)))
+        ga = int(r.get("ga", r.get("goals_against", 0)))
+        rows.append(
+            {
+                "team": str(r["team"]),
+                "played": int(r.get("played", 0)),
+                "won": int(r.get("won", 0)),
+                "draw": int(r.get("draw", r.get("drawn", 0))),
+                "lost": int(r.get("lost", 0)),
+                "gf": gf,
+                "ga": ga,
+                "goal_diff": int(r.get("goal_diff", gf - ga)),
+                "points": int(r.get("points", 0)),
+                "rank": int(r.get("rank", r.get("position", i))),
+            }
+        )
+    return {"rows": rows, "as_of": data.get("as_of"), "source": data.get("source")}
+
+
+def _latest_result_date(season_df: pd.DataFrame) -> Optional[pd.Timestamp]:
+    """Date of the newest result in a season's results CSV (None when empty)."""
+    if season_df is None or season_df.empty:
+        return None
+    latest = season_df["date"].max()
+    return pd.Timestamp(latest).normalize() if pd.notna(latest) else None
+
+
+def _snapshot_warning(snapshot: dict, season_df: pd.DataFrame) -> Optional[str]:
+    """Cross-check an official standings snapshot against the season's results.
+
+    Returns a human-readable warning (or None) when the two sources disagree:
+
+    * the snapshot predates a result already in the CSV (stale — the CSV knows
+      about matches the snapshot does not), or
+    * a club whose results the CSV covers *completely* (its ``played`` count in
+      the CSV matches the snapshot's) has a different W/D/L/GF/GA than the
+      posted table (the CSV contradicts the snapshot).
+
+    Clubs the CSV has not fully covered yet are skipped: a results file that
+    lags the real world by several gameweeks legitimately shows *fewer* matches
+    than the snapshot without being wrong.
+    """
+    notes: list[str] = []
+    latest = _latest_result_date(season_df)
+
+    as_of_raw = (snapshot.get("as_of") or "").strip()
+    as_of = pd.Timestamp(as_of_raw).normalize() if as_of_raw else None
+    if latest is not None and (as_of is None or as_of < latest):
+        if as_of is None:
+            notes.append(
+                "standings snapshot carries no 'as of' date but the results CSV "
+                f"already runs through {latest.date()}"
+            )
+        else:
+            notes.append(
+                f"standings snapshot ({as_of.date()}) is older than the newest result "
+                f"({latest.date()}) already in the CSV"
+            )
+
+    rows = snapshot.get("rows") or []
+    derived = {
+        r["team"]: r for r in _standings(season_df, teams=[r["team"] for r in rows])
+    }
+    conflicts = []
+    for s in rows:
+        d = derived.get(s["team"])
+        if not d or d["played"] == 0:
+            continue
+        if d["played"] != int(s.get("played", 0)):
+            continue  # CSV coverage for this club is incomplete — nothing to compare
+        if (d["won"], d["draw"], d["lost"], d["gf"], d["ga"]) != (
+            int(s.get("won", 0)),
+            int(s.get("draw", 0)),
+            int(s.get("lost", 0)),
+            int(s.get("gf", 0)),
+            int(s.get("ga", 0)),
+        ):
+            conflicts.append(s["team"])
+
+    if conflicts:
+        preview = ", ".join(sorted(conflicts)[:5])
+        if len(conflicts) > 5:
+            preview += ", …"
+        notes.append(
+            f"results CSV contradicts the snapshot for {len(conflicts)} team(s): "
+            f"{preview}"
+        )
+
+    return ("; ".join(notes) + ".") if notes else None
+
+
+def _display_standings(
+    league: str,
+    season_start: pd.Timestamp,
+    season_df: pd.DataFrame,
+    teams: Optional[list[str]] = None,
+) -> tuple[list, dict]:
+    """Standings for the UI.
+
+    Returns ``(rows, meta)`` where ``rows`` match the schema of
+    :func:`_standings`. If an authoritative standings snapshot exists for the
+    season, those rows are shown verbatim; otherwise the table is computed from
+    the season's match results. ``meta`` carries the provenance the UI needs:
+
+    * ``as_of`` / ``source`` — the snapshot's vintage and origin (or ``None`` /
+      ``"results"`` when the table is computed from the results CSV);
+    * ``results_through`` — the newest result date present in the CSV, so the UI
+      can say which source is driving the panel;
+    * ``warning`` — a reconciliation note when the snapshot is older than, or
+      contradicted by, the results CSV (see :func:`_snapshot_warning`).
+    """
+    snapshot = _load_standings_snapshot(league, season_start)
+    latest = _latest_result_date(season_df)
+    results_through = str(latest.date()) if latest is not None else None
+
+    if snapshot is not None:
+        meta = {
+            "as_of": snapshot.get("as_of"),
+            "source": snapshot.get("source") or "standings snapshot",
+            "results_through": results_through,
+            "warning": _snapshot_warning(snapshot, season_df),
+        }
+        return snapshot["rows"], meta
+
+    return (
+        _standings(season_df, teams=teams),
+        {
+            "as_of": None,
+            "source": "results",
+            "results_through": results_through,
+            "warning": None,
+        },
+    )
+
+
 @app.get("/api/teams")
 def teams(
     league: str = Query("EPL", pattern="^(EPL|LALIGA|SERIEA)$"),
@@ -655,8 +854,11 @@ def teams(
     form = _form(df, all_teams)
 
     # Standings (current in-progress season, full roster)
-    season_df = df[df["date"] >= _standings_window(df)]
-    standings = _standings(season_df, teams=_current_season_teams(league))
+    season_start = _standings_window(df)
+    season_df = df[df["date"] >= season_start]
+    standings, _ = _display_standings(
+        league, season_start, season_df, _current_season_teams(league)
+    )
 
     xg_available = _xg_available(league)
 
@@ -930,7 +1132,7 @@ def fixtures_add(
 ):
     """Add one upcoming fixture to the league's fixtures folder."""
     try:
-        if pd.Timestamp(body.date).normalize() < pd.Timestamp.now().normalize():
+        if pd.Timestamp(body.date).normalize() < _now():
             raise ValueError("Fixture date is in the past — pick an upcoming date.")
         add_fixture(
             league,

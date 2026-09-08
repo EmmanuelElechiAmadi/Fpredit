@@ -1,0 +1,381 @@
+Date,HomeTeam,AwayTeam,Matchweek
+15/08/2026,Alaves,Villarreal,1
+15/08/2026,Ath Bilbao,Vallecano,1
+15/08/2026,Ath Madrid,Valencia,1
+15/08/2026,Barcelona,Sociedad,1
+15/08/2026,Betis,Sevilla,1
+15/08/2026,Celta,Santander,1
+15/08/2026,Dep. A Coruna,Real Madrid,1
+15/08/2026,Elche,Osasuna,1
+15/08/2026,Espanol,Malaga,1
+15/08/2026,Getafe,Levante,1
+22/08/2026,Getafe,Espanol,2
+22/08/2026,Levante,Elche,2
+22/08/2026,Malaga,Dep. A Coruna,2
+22/08/2026,Osasuna,Celta,2
+22/08/2026,Real Madrid,Betis,2
+22/08/2026,Sociedad,Ath Bilbao,2
+22/08/2026,Sevilla,Ath Madrid,2
+22/08/2026,Valencia,Villarreal,2
+22/08/2026,Vallecano,Alaves,2
+22/08/2026,Santander,Barcelona,2
+29/08/2026,Betis,Malaga,3
+29/08/2026,Elche,Espanol,3
+29/08/2026,Dep. A Coruna,Getafe,3
+29/08/2026,Celta,Levante,3
+29/08/2026,Barcelona,Osasuna,3
+29/08/2026,Vallecano,Sociedad,3
+29/08/2026,Ath Bilbao,Santander,3
+29/08/2026,Villarreal,Sevilla,3
+29/08/2026,Alaves,Valencia,3
+29/08/2026,Ath Madrid,Real Madrid,3
+05/09/2026,Elche,Dep. A Coruna,4
+05/09/2026,Espanol,Celta,4
+05/09/2026,Getafe,Betis,4
+05/09/2026,Levante,Barcelona,4
+05/09/2026,Malaga,Ath Madrid,4
+05/09/2026,Osasuna,Ath Bilbao,4
+05/09/2026,Santander,Vallecano,4
+05/09/2026,Sevilla,Valencia,4
+05/09/2026,Sociedad,Alaves,4
+05/09/2026,Real Madrid,Villarreal,4
+12/09/2026,Ath Madrid,Getafe,5
+12/09/2026,Celta,Dep. A Coruna,5
+12/09/2026,Betis,Elche,5
+12/09/2026,Ath Bilbao,Levante,5
+12/09/2026,Barcelona,Espanol,5
+12/09/2026,Vallecano,Osasuna,5
+12/09/2026,Valencia,Real Madrid,5
+12/09/2026,Villarreal,Malaga,5
+12/09/2026,Sociedad,Santander,5
+12/09/2026,Alaves,Sevilla,5
+19/09/2026,Celta,Betis,6
+19/09/2026,Dep. A Coruna,Barcelona,6
+19/09/2026,Elche,Ath Madrid,6
+19/09/2026,Espanol,Ath Bilbao,6
+19/09/2026,Getafe,Villarreal,6
+19/09/2026,Levante,Vallecano,6
+19/09/2026,Malaga,Valencia,6
+19/09/2026,Osasuna,Sociedad,6
+19/09/2026,Real Madrid,Sevilla,6
+19/09/2026,Santander,Alaves,6
+26/09/2026,Ath Madrid,Celta,7
+26/09/2026,Ath Bilbao,Dep. A Coruna,7
+26/09/2026,Villarreal,Elche,7
+26/09/2026,Vallecano,Espanol,7
+26/09/2026,Barcelona,Betis,7
+26/09/2026,Sociedad,Levante,7
+26/09/2026,Sevilla,Malaga,7
+26/09/2026,Santander,Osasuna,7
+26/09/2026,Alaves,Real Madrid,7
+26/09/2026,Valencia,Getafe,7
+03/10/2026,Betis,Ath Bilbao,8
+03/10/2026,Celta,Villarreal,8
+03/10/2026,Dep. A Coruna,Vallecano,8
+03/10/2026,Elche,Valencia,8
+03/10/2026,Barcelona,Ath Madrid,8
+03/10/2026,Getafe,Sevilla,8
+03/10/2026,Levante,Santander,8
+03/10/2026,Malaga,Real Madrid,8
+03/10/2026,Osasuna,Alaves,8
+03/10/2026,Espanol,Sociedad,8
+10/10/2026,Ath Bilbao,Ath Madrid,9
+10/10/2026,Villarreal,Barcelona,9
+10/10/2026,Vallecano,Betis,9
+10/10/2026,Valencia,Celta,9
+10/10/2026,Sociedad,Dep. A Coruna,9
+10/10/2026,Sevilla,Elche,9
+10/10/2026,Real Madrid,Getafe,9
+10/10/2026,Osasuna,Levante,9
+10/10/2026,Alaves,Malaga,9
+10/10/2026,Santander,Espanol,9
+17/10/2026,Betis,Sociedad,10
+17/10/2026,Ath Bilbao,Villarreal,10
+17/10/2026,Ath Madrid,Vallecano,10
+17/10/2026,Barcelona,Valencia,10
+17/10/2026,Celta,Sevilla,10
+17/10/2026,Getafe,Malaga,10
+17/10/2026,Elche,Real Madrid,10
+17/10/2026,Espanol,Osasuna,10
+17/10/2026,Dep. A Coruna,Santander,10
+17/10/2026,Levante,Alaves,10
+24/10/2026,Vallecano,Villarreal,11
+24/10/2026,Valencia,Ath Bilbao,11
+24/10/2026,Sociedad,Ath Madrid,11
+24/10/2026,Sevilla,Barcelona,11
+24/10/2026,Santander,Betis,11
+24/10/2026,Osasuna,Dep. A Coruna,11
+24/10/2026,Malaga,Elche,11
+24/10/2026,Levante,Espanol,11
+24/10/2026,Alaves,Getafe,11
+24/10/2026,Real Madrid,Celta,11
+31/10/2026,Ath Madrid,Santander,12
+31/10/2026,Vallecano,Valencia,12
+31/10/2026,Villarreal,Sociedad,12
+31/10/2026,Ath Bilbao,Sevilla,12
+31/10/2026,Barcelona,Real Madrid,12
+31/10/2026,Betis,Osasuna,12
+31/10/2026,Celta,Malaga,12
+31/10/2026,Dep. A Coruna,Levante,12
+31/10/2026,Elche,Getafe,12
+31/10/2026,Espanol,Alaves,12
+07/11/2026,Sociedad,Valencia,13
+07/11/2026,Sevilla,Vallecano,13
+07/11/2026,Santander,Villarreal,13
+07/11/2026,Real Madrid,Ath Bilbao,13
+07/11/2026,Osasuna,Ath Madrid,13
+07/11/2026,Malaga,Barcelona,13
+07/11/2026,Levante,Betis,13
+07/11/2026,Getafe,Celta,13
+07/11/2026,Espanol,Dep. A Coruna,13
+07/11/2026,Alaves,Elche,13
+14/11/2026,Valencia,Santander,14
+14/11/2026,Vallecano,Real Madrid,14
+14/11/2026,Villarreal,Osasuna,14
+14/11/2026,Ath Bilbao,Malaga,14
+14/11/2026,Sociedad,Sevilla,14
+14/11/2026,Barcelona,Getafe,14
+14/11/2026,Betis,Espanol,14
+14/11/2026,Celta,Elche,14
+14/11/2026,Dep. A Coruna,Alaves,14
+14/11/2026,Ath Madrid,Levante,14
+21/11/2026,Santander,Sevilla,15
+21/11/2026,Real Madrid,Sociedad,15
+21/11/2026,Osasuna,Valencia,15
+21/11/2026,Malaga,Vallecano,15
+21/11/2026,Levante,Villarreal,15
+21/11/2026,Getafe,Ath Bilbao,15
+21/11/2026,Espanol,Ath Madrid,15
+21/11/2026,Elche,Barcelona,15
+21/11/2026,Dep. A Coruna,Betis,15
+21/11/2026,Alaves,Celta,15
+28/11/2026,Sevilla,Osasuna,16
+28/11/2026,Sociedad,Malaga,16
+28/11/2026,Valencia,Levante,16
+28/11/2026,Vallecano,Getafe,16
+28/11/2026,Santander,Real Madrid,16
+28/11/2026,Ath Bilbao,Elche,16
+28/11/2026,Ath Madrid,Dep. A Coruna,16
+28/11/2026,Barcelona,Celta,16
+28/11/2026,Betis,Alaves,16
+28/11/2026,Villarreal,Espanol,16
+05/12/2026,Malaga,Santander,17
+05/12/2026,Levante,Sevilla,17
+05/12/2026,Getafe,Sociedad,17
+05/12/2026,Espanol,Valencia,17
+05/12/2026,Osasuna,Real Madrid,17
+05/12/2026,Dep. A Coruna,Villarreal,17
+05/12/2026,Celta,Ath Bilbao,17
+05/12/2026,Betis,Ath Madrid,17
+05/12/2026,Alaves,Barcelona,17
+05/12/2026,Elche,Vallecano,17
+12/12/2026,Osasuna,Malaga,18
+12/12/2026,Real Madrid,Levante,18
+12/12/2026,Santander,Getafe,18
+12/12/2026,Sevilla,Espanol,18
+12/12/2026,Sociedad,Elche,18
+12/12/2026,Valencia,Dep. A Coruna,18
+12/12/2026,Villarreal,Betis,18
+12/12/2026,Ath Bilbao,Barcelona,18
+12/12/2026,Ath Madrid,Alaves,18
+12/12/2026,Vallecano,Celta,18
+19/12/2026,Elche,Santander,19
+19/12/2026,Getafe,Osasuna,19
+19/12/2026,Espanol,Real Madrid,19
+19/12/2026,Dep. A Coruna,Sevilla,19
+19/12/2026,Levante,Malaga,19
+19/12/2026,Betis,Valencia,19
+19/12/2026,Barcelona,Vallecano,19
+19/12/2026,Ath Madrid,Villarreal,19
+19/12/2026,Alaves,Ath Bilbao,19
+19/12/2026,Celta,Sociedad,19
+02/01/2027,Levante,Getafe,20
+02/01/2027,Malaga,Espanol,20
+02/01/2027,Osasuna,Elche,20
+02/01/2027,Real Madrid,Dep. A Coruna,20
+02/01/2027,Santander,Celta,20
+02/01/2027,Sevilla,Betis,20
+02/01/2027,Sociedad,Barcelona,20
+02/01/2027,Valencia,Ath Madrid,20
+02/01/2027,Vallecano,Ath Bilbao,20
+02/01/2027,Villarreal,Alaves,20
+09/01/2027,Elche,Levante,21
+09/01/2027,Dep. A Coruna,Malaga,21
+09/01/2027,Celta,Osasuna,21
+09/01/2027,Betis,Real Madrid,21
+09/01/2027,Espanol,Getafe,21
+09/01/2027,Ath Madrid,Sevilla,21
+09/01/2027,Ath Bilbao,Sociedad,21
+09/01/2027,Villarreal,Valencia,21
+09/01/2027,Alaves,Vallecano,21
+09/01/2027,Barcelona,Santander,21
+16/01/2027,Getafe,Dep. A Coruna,22
+16/01/2027,Levante,Celta,22
+16/01/2027,Malaga,Betis,22
+16/01/2027,Osasuna,Barcelona,22
+16/01/2027,Espanol,Elche,22
+16/01/2027,Santander,Ath Bilbao,22
+16/01/2027,Sevilla,Villarreal,22
+16/01/2027,Sociedad,Vallecano,22
+16/01/2027,Valencia,Alaves,22
+16/01/2027,Real Madrid,Ath Madrid,22
+23/01/2027,Dep. A Coruna,Elche,23
+23/01/2027,Celta,Espanol,23
+23/01/2027,Betis,Getafe,23
+23/01/2027,Barcelona,Levante,23
+23/01/2027,Ath Madrid,Malaga,23
+23/01/2027,Ath Bilbao,Osasuna,23
+23/01/2027,Vallecano,Santander,23
+23/01/2027,Valencia,Sevilla,23
+23/01/2027,Alaves,Sociedad,23
+23/01/2027,Villarreal,Real Madrid,23
+30/01/2027,Getafe,Ath Madrid,24
+30/01/2027,Dep. A Coruna,Celta,24
+30/01/2027,Elche,Betis,24
+30/01/2027,Espanol,Barcelona,24
+30/01/2027,Levante,Ath Bilbao,24
+30/01/2027,Malaga,Villarreal,24
+30/01/2027,Osasuna,Vallecano,24
+30/01/2027,Real Madrid,Valencia,24
+30/01/2027,Santander,Sociedad,24
+30/01/2027,Sevilla,Alaves,24
+06/02/2027,Betis,Celta,25
+06/02/2027,Barcelona,Dep. A Coruna,25
+06/02/2027,Ath Madrid,Elche,25
+06/02/2027,Ath Bilbao,Espanol,25
+06/02/2027,Villarreal,Getafe,25
+06/02/2027,Valencia,Malaga,25
+06/02/2027,Sociedad,Osasuna,25
+06/02/2027,Sevilla,Real Madrid,25
+06/02/2027,Alaves,Santander,25
+06/02/2027,Vallecano,Levante,25
+13/02/2027,Elche,Villarreal,26
+13/02/2027,Betis,Barcelona,26
+13/02/2027,Celta,Ath Madrid,26
+13/02/2027,Dep. A Coruna,Ath Bilbao,26
+13/02/2027,Espanol,Vallecano,26
+13/02/2027,Real Madrid,Alaves,26
+13/02/2027,Levante,Sociedad,26
+13/02/2027,Malaga,Sevilla,26
+13/02/2027,Osasuna,Santander,26
+13/02/2027,Getafe,Valencia,26
+20/02/2027,Vallecano,Dep. A Coruna,27
+20/02/2027,Ath Madrid,Barcelona,27
+20/02/2027,Ath Bilbao,Betis,27
+20/02/2027,Villarreal,Celta,27
+20/02/2027,Valencia,Elche,27
+20/02/2027,Alaves,Osasuna,27
+20/02/2027,Sevilla,Getafe,27
+20/02/2027,Santander,Levante,27
+20/02/2027,Real Madrid,Malaga,27
+20/02/2027,Sociedad,Espanol,27
+27/02/2027,Ath Madrid,Ath Bilbao,28
+27/02/2027,Barcelona,Villarreal,28
+27/02/2027,Betis,Vallecano,28
+27/02/2027,Celta,Valencia,28
+27/02/2027,Dep. A Coruna,Sociedad,28
+27/02/2027,Espanol,Santander,28
+27/02/2027,Getafe,Real Madrid,28
+27/02/2027,Levante,Osasuna,28
+27/02/2027,Malaga,Alaves,28
+27/02/2027,Elche,Sevilla,28
+06/03/2027,Sociedad,Betis,29
+06/03/2027,Vallecano,Ath Madrid,29
+06/03/2027,Valencia,Barcelona,29
+06/03/2027,Villarreal,Ath Bilbao,29
+06/03/2027,Sevilla,Celta,29
+06/03/2027,Osasuna,Espanol,29
+06/03/2027,Real Madrid,Elche,29
+06/03/2027,Malaga,Getafe,29
+06/03/2027,Alaves,Levante,29
+06/03/2027,Santander,Dep. A Coruna,29
+13/03/2027,Villarreal,Vallecano,30
+13/03/2027,Ath Bilbao,Valencia,30
+13/03/2027,Ath Madrid,Sociedad,30
+13/03/2027,Barcelona,Sevilla,30
+13/03/2027,Betis,Santander,30
+13/03/2027,Dep. A Coruna,Osasuna,30
+13/03/2027,Elche,Malaga,30
+13/03/2027,Espanol,Levante,30
+13/03/2027,Getafe,Alaves,30
+13/03/2027,Celta,Real Madrid,30
+20/03/2027,Santander,Ath Madrid,31
+20/03/2027,Valencia,Vallecano,31
+20/03/2027,Sociedad,Villarreal,31
+20/03/2027,Sevilla,Ath Bilbao,31
+20/03/2027,Real Madrid,Barcelona,31
+20/03/2027,Alaves,Espanol,31
+20/03/2027,Malaga,Celta,31
+20/03/2027,Levante,Dep. A Coruna,31
+20/03/2027,Getafe,Elche,31
+20/03/2027,Osasuna,Betis,31
+27/03/2027,Ath Bilbao,Real Madrid,32
+27/03/2027,Valencia,Sociedad,32
+27/03/2027,Vallecano,Sevilla,32
+27/03/2027,Villarreal,Santander,32
+27/03/2027,Ath Madrid,Osasuna,32
+27/03/2027,Elche,Alaves,32
+27/03/2027,Betis,Levante,32
+27/03/2027,Celta,Getafe,32
+27/03/2027,Dep. A Coruna,Espanol,32
+27/03/2027,Barcelona,Malaga,32
+03/04/2027,Sevilla,Sociedad,33
+03/04/2027,Santander,Valencia,33
+03/04/2027,Real Madrid,Vallecano,33
+03/04/2027,Osasuna,Villarreal,33
+03/04/2027,Malaga,Ath Bilbao,33
+03/04/2027,Getafe,Barcelona,33
+03/04/2027,Espanol,Betis,33
+03/04/2027,Elche,Celta,33
+03/04/2027,Alaves,Dep. A Coruna,33
+03/04/2027,Levante,Ath Madrid,33
+10/04/2027,Vallecano,Malaga,34
+10/04/2027,Sociedad,Real Madrid,34
+10/04/2027,Valencia,Osasuna,34
+10/04/2027,Sevilla,Santander,34
+10/04/2027,Villarreal,Levante,34
+10/04/2027,Barcelona,Elche,34
+10/04/2027,Ath Madrid,Espanol,34
+10/04/2027,Betis,Dep. A Coruna,34
+10/04/2027,Celta,Alaves,34
+10/04/2027,Ath Bilbao,Getafe,34
+17/04/2027,Real Madrid,Santander,35
+17/04/2027,Osasuna,Sevilla,35
+17/04/2027,Malaga,Sociedad,35
+17/04/2027,Levante,Valencia,35
+17/04/2027,Getafe,Vallecano,35
+17/04/2027,Espanol,Villarreal,35
+17/04/2027,Elche,Ath Bilbao,35
+17/04/2027,Dep. A Coruna,Ath Madrid,35
+17/04/2027,Celta,Barcelona,35
+17/04/2027,Alaves,Betis,35
+24/04/2027,Santander,Malaga,36
+24/04/2027,Real Madrid,Osasuna,36
+24/04/2027,Sociedad,Getafe,36
+24/04/2027,Valencia,Espanol,36
+24/04/2027,Sevilla,Levante,36
+24/04/2027,Villarreal,Dep. A Coruna,36
+24/04/2027,Ath Bilbao,Celta,36
+24/04/2027,Ath Madrid,Betis,36
+24/04/2027,Barcelona,Alaves,36
+24/04/2027,Vallecano,Elche,36
+01/05/2027,Malaga,Osasuna,37
+01/05/2027,Levante,Real Madrid,37
+01/05/2027,Espanol,Sevilla,37
+01/05/2027,Elche,Sociedad,37
+01/05/2027,Getafe,Santander,37
+01/05/2027,Celta,Vallecano,37
+01/05/2027,Betis,Villarreal,37
+01/05/2027,Barcelona,Ath Bilbao,37
+01/05/2027,Alaves,Ath Madrid,37
+01/05/2027,Dep. A Coruna,Valencia,37
+08/05/2027,Osasuna,Getafe,38
+08/05/2027,Ath Bilbao,Alaves,38
+08/05/2027,Villarreal,Ath Madrid,38
+08/05/2027,Vallecano,Barcelona,38
+08/05/2027,Valencia,Betis,38
+08/05/2027,Sociedad,Celta,38
+08/05/2027,Sevilla,Dep. A Coruna,38
+08/05/2027,Santander,Elche,38
+08/05/2027,Real Madrid,Espanol,38
+08/05/2027,Malaga,Levante,38

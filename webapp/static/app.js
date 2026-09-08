@@ -56,6 +56,20 @@ function fmtNum(x, d = 2) {
   return x == null ? "—" : Number(x).toFixed(d);
 }
 
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+// ISO (2026-09-06) -> "6 Sep 2026" without timezone off-by-one surprises.
+function fmtDate(iso) {
+  if (!iso) return "";
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return iso;
+  const [, y, mo, day] = m;
+  return `${Number(day)} ${MONTHS_SHORT[Number(mo) - 1]} ${y}`;
+}
+
 function destroyChart(id) {
   if (state.charts[id]) {
     state.charts[id].destroy();
@@ -224,13 +238,45 @@ async function loadDashboard() {
       .join("");
 
     $("#standingsSeason").textContent =
-      d.standings_season || `${d.latest_date.slice(0, 4)}/${(Number(d.latest_date.slice(0, 4)) + 1) % 100}`;
+      d.standings_season ||
+      `${d.latest_date.slice(0, 4)}/${(Number(d.latest_date.slice(0, 4)) + 1) % 100}`;
+    const isOfficial = d.standings_source && d.standings_source !== "results";
+    if ($("#standingsOfficial")) $("#standingsOfficial").hidden = !isOfficial;
+    const hasWarning = !!d.standings_warning;
+    if ($("#standingsNote")) {
+      $("#standingsNote").hidden = !isOfficial;
+      if (isOfficial) {
+        if (hasWarning) {
+          $("#standingsNote").textContent = "⚠️ " + d.standings_warning;
+          $("#standingsNote").classList.add("warn");
+        } else {
+          $("#standingsNote").textContent = d.standings_as_of
+            ? `Official league table — updated ${fmtDate(d.standings_as_of)}.`
+            : "Official league table (posted standings).";
+          $("#standingsNote").classList.remove("warn");
+        }
+        $("#standingsNote").title = d.standings_source || "";
+      }
+    }
+    // Data-freshness banner: one line telling you which source drives each
+    // panel — the results CSV (Recent Results) vs the posted league table.
+    const freshEl = $("#dataFreshness");
+    if (freshEl) {
+      const resultsTxt = d.latest_date
+        ? `Results through ${fmtDate(d.latest_date)}`
+        : "No results in the CSV yet";
+      freshEl.textContent = isOfficial
+        ? `${resultsTxt} · Standings: official table as of ${fmtDate(d.standings_as_of) || "unknown date"}`
+        : `${resultsTxt} · Standings computed from results`;
+      freshEl.classList.toggle("warn", hasWarning);
+      freshEl.hidden = false;
+    }
     $("#standingsTable").innerHTML =
-      `<thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>` +
+      `<thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th></tr></thead><tbody>` +
       d.standings
         .map(
           (r) =>
-            `<tr><td>${r.rank}</td><td class="team-cell">${r.team}</td><td>${r.played}</td><td>${r.won}</td><td>${r.draw}</td><td>${r.lost}</td><td>${r.goal_diff > 0 ? "+" : ""}${r.goal_diff}</td><td class="pts">${r.points}</td></tr>`
+            `<tr><td>${r.rank}</td><td class="team-cell">${r.team}</td><td>${r.played}</td><td>${r.won}</td><td>${r.draw}</td><td>${r.lost}</td><td>${r.gf}</td><td>${r.ga}</td><td>${r.goal_diff > 0 ? "+" : ""}${r.goal_diff}</td><td class="pts">${r.points}</td></tr>`
         )
         .join("") +
       `</tbody>`;
