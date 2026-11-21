@@ -1,0 +1,60 @@
+# League Updates — pipeline configuration.
+#
+# This file configures the SQLite-backed update pipeline (src/update/). It lives
+# alongside config.yaml: config.yaml still holds the calibrated *model*
+# hyperparameters (Elo k, Dixon-Coles xi, meta-learner, etc.) consumed by
+# src/ensemble.py / src/model_factory.py, while this file holds everything the
+# update pipeline itself needs (sources, validation thresholds, retries, lock).
+#
+# League keys use the project's existing convention: EPL / LALIGA / SERIEA.
+
+season: auto                # "auto" derives the season code from today's date
+
+leagues:
+  EPL:
+    football_data_code: E0
+    understat: EPL
+  LALIGA:
+    football_data_code: SP1
+    understat: La_liga
+  SERIEA:
+    football_data_code: I1
+    understat: Serie_A
+
+sources:
+  # football-data.co.uk season-file base (season code + league code appended):
+  #   https://www.football-data.co.uk/mmz4281/2627/E0.csv
+  football_data_base: https://www.football-data.co.uk/mmz4281
+  fixtures_url: https://www.football-data.co.uk/fixtures.csv
+  understat: enabled         # "disabled" skips the Understat xG merge entirely
+  squad_news: disabled       # reserved for a future injuries/lineups source
+
+database:
+  path: data/updates.db      # SQLite file (relative to the project root)
+
+raw_snapshots_dir: data/raw_snapshots   # timestamped copies of every raw download
+reports_dir: reports                    # run reports (update_YYYY-MM-DD_HHMM.md)
+
+ratings:
+  # Starting Elo for teams newly promoted into a league.
+  promoted_team_start: 1450.0
+  # Fraction each team's rating is pulled back toward the league mean when a
+  # new season starts (0 disables the regression).
+  season_regression: 0.25
+
+validation:
+  max_missing_rate: 0.05     # per-column missing-value threshold (warn beyond it)
+  odds_overround_range: [1.00, 1.20]
+  max_goals_per_team: 20     # implausible-score guard
+  max_shots: 80              # implausible-shot-count guard
+  max_corners: 30
+  max_fouls: 50
+  max_cards: 15
+
+retry:
+  attempts: 4
+  backoff_seconds: [5, 20, 60, 180]
+
+lock:
+  path: data/updates.lock    # single-run lock file
+  stale_after_seconds: 1800  # break a lock older than this (crashed run)

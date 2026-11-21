@@ -1,0 +1,151 @@
+# Canonical team-name map.
+#
+# Every source spelling maps to ONE canonical name per league. The canonical
+# names are the football-data.co.uk spellings used across src/* (data_loader,
+# elo, dixon_coles, features, xg_loader), so results/xG/fixtures all join on
+# the same key.
+#
+# An UNMAPPED team name halts that league's update and is logged for a manual
+# fix (the model never guesses). Names that already equal a canonical value are
+# accepted automatically, so identity entries below are for documentation only.
+
+EPL:
+  # identity (football-data.co.uk spellings)
+  Arsenal: Arsenal
+  Aston Villa: Aston Villa
+  Bournemouth: Bournemouth
+  Brentford: Brentford
+  Brighton: Brighton
+  Burnley: Burnley
+  Chelsea: Chelsea
+  Coventry: Coventry
+  Crystal Palace: Crystal Palace
+  Everton: Everton
+  Fulham: Fulham
+  Hull: Hull
+  Ipswich Town: Ipswich Town
+  Leeds: Leeds
+  Liverpool: Liverpool
+  Luton: Luton
+  Man City: Man City
+  Man United: Man United
+  Newcastle: Newcastle
+  "Nott'm Forest": "Nott'm Forest"
+  Sheffield United: Sheffield United
+  Sunderland: Sunderland
+  Tottenham: Tottenham
+  West Brom: West Brom
+  West Ham: West Ham
+  Wolves: Wolves
+  QPR: QPR
+  Cardiff: Cardiff
+  Norwich: Norwich
+  Leicester: Leicester
+  Southampton: Southampton
+  Watford: Watford
+  # football-data.org / display names
+  "Brighton and Hove Albion": Brighton
+  "Coventry City": Coventry
+  "Hull City": Hull
+  "Ipswich": Ipswich Town
+  "Leeds United": Leeds
+  "Manchester City": Man City
+  "Manchester United": Man United
+  "Newcastle United": Newcastle
+  "Nottingham Forest": "Nott'm Forest"
+  "Tottenham Hotspur": Tottenham
+  "West Ham United": West Ham
+  "Wolverhampton Wanderers": Wolves
+  # Understat names
+  "West Bromwich Albion": West Brom
+  "Queens Park Rangers": QPR
+  "Cardiff City": Cardiff
+  "Norwich City": Norwich
+
+LALIGA:
+  # identity (football-data.co.uk spellings)
+  Alaves: Alaves
+  "Ath Bilbao": "Ath Bilbao"
+  "Ath Madrid": "Ath Madrid"
+  Barcelona: Barcelona
+  Betis: Betis
+  Celta: Celta
+  "Dep. A Coruna": "Dep. A Coruna"
+  "La Coruna": "Dep. A Coruna"
+  Elche: Elche
+  Espanol: Espanol
+  Getafe: Getafe
+  Girona: Girona
+  "Las Palmas": "Las Palmas"
+  Leganes: Leganes
+  Levante: Levante
+  Malaga: Malaga
+  Mallorca: Mallorca
+  Osasuna: Osasuna
+  "Real Madrid": "Real Madrid"
+  Santander: Santander
+  Sevilla: Sevilla
+  Sociedad: Sociedad
+  Valencia: Valencia
+  Valladolid: Valladolid
+  Vallecano: Vallecano
+  Villarreal: Villarreal
+  Oviedo: Oviedo
+  "Sporting Gijon": "Sporting Gijon"
+  Almeria: Almeria
+  Cadiz: Cadiz
+  Granada: Granada
+  # football-data.org / display names
+  "Athletic Bilbao": "Ath Bilbao"
+  "Athletic Club": "Ath Bilbao"
+  "Atletico Madrid": "Ath Madrid"
+  "Atlético Madrid": "Ath Madrid"
+  "Celta Vigo": Celta
+  "Deportivo La Coruna": "Dep. A Coruna"
+  "Deportivo La Coruña": "Dep. A Coruna"
+  Espanyol: Espanol
+  Español: Espanol
+  "Racing Santander": Santander
+  "Rayo Vallecano": Vallecano
+  "Real Betis": Betis
+  "Real Sociedad": Sociedad
+  "Real Valladolid": Valladolid
+  "Real Oviedo": Oviedo
+
+SERIEA:
+  # identity (football-data.co.uk spellings)
+  Atalanta: Atalanta
+  Bologna: Bologna
+  Cagliari: Cagliari
+  Como: Como
+  Empoli: Empoli
+  Fiorentina: Fiorentina
+  Frosinone: Frosinone
+  Genoa: Genoa
+  Inter: Inter
+  Juventus: Juventus
+  Lazio: Lazio
+  Lecce: Lecce
+  Milan: Milan
+  Monza: Monza
+  Napoli: Napoli
+  Parma: Parma
+  Roma: Roma
+  Salernitana: Salernitana
+  Sassuolo: Sassuolo
+  Spezia: Spezia
+  Torino: Torino
+  Udinese: Udinese
+  Venezia: Venezia
+  Verona: Verona
+  Cremonese: Cremonese
+  Pisa: Pisa
+  Sampdoria: Sampdoria
+  # football-data.org / display names
+  "AS Roma": Roma
+  "AC Milan": Milan
+  "Hellas Verona": Verona
+  Internazionale: Inter
+  "Inter Milan": Inter
+  # Understat names
+  "Parma Calcio 1913": Parma

@@ -59,3 +59,8 @@ models/
 logs/
 *.log
 reports/
+
+# League Updates pipeline artifacts (SQLite DB, lock, raw snapshots)
+data/updates.db
+data/updates.lock
+data/raw_snapshots/
