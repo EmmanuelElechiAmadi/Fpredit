@@ -48,6 +48,7 @@ from src.fixtures import (
     write_fixtures_batch,
 )
 from src.market import add_implied_probabilities
+from src.market_lines import market_lines_from_matrix
 from src.model_factory import build_ensemble
 from src.xg_loader import join_xg, load_league_xg
 
@@ -88,6 +89,16 @@ app.add_middleware(
 # Serve the built frontend (webapp/static/) at /
 STATIC_DIR = Path(__file__).resolve().parent.parent / "webapp" / "static"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Optional per-match context features live in data/context/<LEAGUE>/<season>.csv
+_CONTEXT_DIR = Path(__file__).resolve().parent.parent / "data" / "context"
+
+
+def _context_files_exist() -> bool:
+    try:
+        return bool(list(_CONTEXT_DIR.glob("*/*.csv")))
+    except OSError:
+        return False
 
 
 @app.get("/", include_in_schema=False)
@@ -214,7 +225,12 @@ def _get_model_cached(league: str):
     if xg_df is not None and not xg_df.empty:
         df = join_xg(df, xg_df)
     model = build_ensemble(cfg)
-    model.fit(df.sort_values("date"))
+    # Optional per-match context features (injuries, manager changes, UEFA
+    # load, weather, ...) activate automatically when data/context/<LEAGUE>/
+    # files exist (see src/context_features.py).
+    if _context_files_exist():
+        model.context_dir = str(_CONTEXT_DIR)
+    model.fit(df.sort_values("date"), league=league)
     _MODEL_CACHE[key] = model
     return model
 
@@ -988,6 +1004,10 @@ def predict(
         "probs": mat[:7, :7].round(4).tolist(),
     }
 
+    # Derivative markets priced straight off the same matrix (fair, no margin):
+    # Over/Under total goals + Asian Handicap on the home team.
+    derivative_lines = market_lines_from_matrix(mat[:7, :7])
+
     comps = p["component_probs"]
     return {
         "home": home,
@@ -1023,6 +1043,7 @@ def predict(
         "xg_enabled": "xg" in comps,
         "market": market,
         "score_matrix": score_grid,
+        "derivative_markets": derivative_lines,
     }
 
 

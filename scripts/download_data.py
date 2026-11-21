@@ -5,9 +5,15 @@ Download historical football CSV data from football-data.co.uk.
 Usage:
     python scripts/download_data.py --league EPL --seasons 5
     python scripts/download_data.py --all --seasons 3 --data-dir data/raw
+    python scripts/download_data.py --all --seasons 1 --refresh   # weekly update
 
 Downloads season files into data/raw/<LEAGUE_CODE>/<season>.csv
 No API key required. Updated weekly during the season.
+
+Completed seasons never change, so they are only downloaded when missing.
+The *current* season's file is re-published on football-data.co.uk every week
+as new matchweeks finish — pass ``--refresh`` to re-download and overwrite it
+(``scripts/refresh_data.py`` does this automatically).
 """
 import argparse
 import csv
@@ -96,9 +102,45 @@ def _validate_downloaded_csv(out_path: Path, expected_code: str) -> bool:
         return False
 
 
+def download_plan(
+    current_year: int,
+    n_seasons: int,
+    refresh: bool = False,
+) -> list[dict]:
+    """Which season files the next download pass should fetch.
+
+    Completed seasons are frozen once the season ends, so they only need to be
+    fetched when missing. The current (in-progress) season is re-published every
+    week with new matchweeks + closing odds, so ``refresh`` re-downloads it even
+    when a local copy already exists.
+
+    Returns a list of ``{"season_start": int, "overwrite": bool}`` for the next
+    ``n_seasons`` years ending at ``current_year``.
+    """
+    plan = []
+    for i in range(n_seasons):
+        season_start = current_year - i
+        plan.append(
+            {
+                "season_start": season_start,
+                "overwrite": refresh and season_start == current_year,
+            }
+        )
+    return plan
+
+
 def download_league(
-    league: str, n_seasons: int, data_dir: str, current_year: Optional[int] = None
-):
+    league: str,
+    n_seasons: int,
+    data_dir: str,
+    current_year: Optional[int] = None,
+    refresh: bool = False,
+) -> dict:
+    """Download season CSVs for ``league`` into ``data_dir/<CODE>/``.
+
+    Pass ``refresh=True`` to overwrite the current (in-progress) season's file —
+    the weekly update path. Returns a small summary dict for callers.
+    """
     if current_year is None:
         from datetime import date
 
@@ -109,19 +151,22 @@ def download_league(
     dest = Path(data_dir) / info["code"]
     dest.mkdir(parents=True, exist_ok=True)
 
-    downloaded = 0
-    for i in range(n_seasons):
-        season_start = current_year - i
+    summary = {"downloaded": 0, "refreshed": 0, "skipped": 0, "failed": 0}
+    for entry in download_plan(current_year, n_seasons, refresh=refresh):
+        season_start = entry["season_start"]
+        overwrite = entry["overwrite"]
         code = _season_code(season_start)
         url = info["url"].format(season=code, code=info["code"])
         out_path = dest / f"{season_start}-{season_start + 1 - 2000:02d}.csv"
 
-        if out_path.exists():
+        if out_path.exists() and not overwrite:
             print(f"[SKIP] {out_path.name} already exists")
+            summary["skipped"] += 1
             continue
 
         print(
-            f"[DL] {info['name']} {season_start}-{season_start + 1 - 2000:02d} ... ",
+            f"[DL] {info['name']} {season_start}-{season_start + 1 - 2000:02d} "
+            f"{'[refresh]' if overwrite else ''} ... ",
             end="",
             flush=True,
         )
@@ -135,23 +180,39 @@ def download_league(
             if not _validate_downloaded_csv(out_path, info["code"]):
                 out_path.unlink(missing_ok=True)
                 print(f"  Deleted {out_path.name}: wrong competition data discarded")
+                summary["failed"] += 1
                 continue
 
-            downloaded += 1
+            if overwrite:
+                summary["refreshed"] += 1
+            else:
+                summary["downloaded"] += 1
         except HTTPError as e:
             if e.code == 404:
                 print("NOT FOUND (season may be too old or not yet available)")
             else:
                 print(f"HTTP Error {e.code}: {e.reason}")
+            summary["failed"] += 1
         except URLError as e:
             print(f"Network error: {e.reason}")
+            summary["failed"] += 1
         except Exception as e:
             print(f"Unexpected error: {e}")
+            summary["failed"] += 1
 
-    if downloaded == 0:
-        print(f"\nNo new files downloaded for {league}. Data is already up-to-date.")
+    got = summary["downloaded"] + summary["refreshed"]
+    if got == 0 and summary["failed"] == 0:
+        print(f"\nNo new files for {league}. Data is already up-to-date.")
     else:
-        print(f"\nDownloaded {downloaded} season file(s) to {dest.resolve()}")
+        done = []
+        if summary["downloaded"]:
+            done.append(f"downloaded {summary['downloaded']}")
+        if summary["refreshed"]:
+            done.append(f"refreshed {summary['refreshed']} (current season)")
+        if summary["failed"]:
+            done.append(f"{summary['failed']} failed")
+        print(f"\n{', '.join(done)} season file(s) for {league} in {dest.resolve()}")
+    return summary
 
 
 def main():
@@ -169,6 +230,12 @@ def main():
         help="Number of past seasons to download (default: 5)",
     )
     ap.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Weekly update: overwrite the current (in-progress) season's file "
+        "even if it already exists, so new matchweeks + odds are picked up.",
+    )
+    ap.add_argument(
         "--data-dir",
         default="data/raw",
         help="Directory to save CSV files (default: data/raw)",
@@ -180,7 +247,7 @@ def main():
 
     leagues = list(LEAGUE_URLS.keys()) if args.all else [args.league]
     for league in leagues:
-        download_league(league, args.seasons, args.data_dir)
+        download_league(league, args.seasons, args.data_dir, refresh=args.refresh)
         print()
 
 

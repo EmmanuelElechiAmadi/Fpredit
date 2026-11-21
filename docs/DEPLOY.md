@@ -5,9 +5,8 @@ data. **Vercel (serverless) is a poor fit** — function size/time limits and th
 lack of a persistent process break the model warm-up and backtests. Use a
 platform that runs a long-lived container instead.
 
-The repo is deploy-ready: a `Dockerfile`, `railway.json`, `render.yaml` and
-`Procfile` are included, and the ~3MB of results + xG data is committed so the
-image builds without re-downloading anything.
+The repo is deploy-ready: a `Dockerfile`, `render.yaml` and the ~3MB of results +
+xG data are committed so the image builds without re-downloading anything.
 
 ## Option A — Railway (recommended: persistent, simplest)
 
@@ -50,6 +49,31 @@ docker run -p 8000:8000 football-predictor   # serves http://localhost:8000
   default backtest in the background (`app/main.py` `_warm_caches`).
 - Health endpoint: `GET /api/health` → `{"status":"ok"}` (used by platform
   health checks).
+
+## Scheduled data refresh (keep the deployed app fresh)
+
+The container's entrypoint (`docker/entrypoint.sh`) runs the weekly refresh
+(`scripts/refresh_data.py`) instead of the web server when `CRON_REFRESH=1` is
+set — so a scheduled job can reuse the exact same image.
+
+- **GitHub Actions** (easiest, no platform config): `.github/workflows/weekly-refresh.yml`
+  runs `python3 scripts/refresh_data.py --seasons 1 --strict` every Monday and
+  commits any changed `data/` back to `master`. Enable it in the repo settings →
+  Actions → Workflow permissions (read **and write**). For automatic standings
+  + fixtures, add a `FOOTBALL_DATA_ORG_API_KEY` repository secret.
+- **Render**: `render.yaml` already defines a `cron` service
+  (`football-predictor-weekly-refresh`, Mondays 03:00 UTC) with
+  `CRON_REFRESH=1`. Fill in `FOOTBALL_DATA_ORG_API_KEY` on the dashboard.
+- **Railway**: New → **Cron Job** → deploy this repo, then set the environment
+  variable `CRON_REFRESH=1` (Railway runs the container on schedule; the
+  entrypoint executes the refresh and exits). Optional:
+  `FOOTBALL_DATA_ORG_API_KEY` for automatic standings/fixtures.
+- Any other scheduler can just run `python3 scripts/refresh_data.py --seasons 1`
+  in a checkout of the repo.
+
+The refreshed container keeps the new `data/` baked into the image only after a
+redeploy; the GitHub Actions route commits data to `master`, which triggers the
+web service's auto-deploy (a fresh image with the updated CSVs).
 
 ## Notes
 

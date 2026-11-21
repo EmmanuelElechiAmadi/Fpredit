@@ -19,6 +19,8 @@ COPY src/ src/
 COPY scripts/ scripts/
 COPY webapp/ webapp/
 COPY backtest.py predict.py config.yaml ./
+COPY docker/entrypoint.sh docker/entrypoint.sh
+RUN chmod +x docker/entrypoint.sh
 
 # Football data (results + xG) baked into the image — required by the model
 COPY data/ data/
@@ -27,4 +29,6 @@ ENV PORT=8000
 EXPOSE 8000
 
 # Bind 0.0.0.0 so the platform's router can reach us; honour $PORT when set.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Set CRON_REFRESH=1 (Render/Railway scheduled job) to run the weekly data
+# refresh instead of serving the app.
+ENTRYPOINT ["sh", "docker/entrypoint.sh"]

@@ -319,7 +319,9 @@ class FakePredictModel:
     def __init__(self):
         self.dyn = SimpleNamespace(expected_goals=lambda h, a: (1.2, 0.8))
         self.dc = SimpleNamespace(
-            score_matrix=lambda h, a, max_goals=6: np.zeros((8, 8))
+            # A proper (flat) score distribution so derivative-market pricing
+            # has probability mass to work with (7x7 == the API's grid size).
+            score_matrix=lambda h, a, max_goals=6: np.full((7, 7), 1.0 / 49.0)
         )
 
     def predict(self, home, away, market_odds=None):
@@ -383,6 +385,17 @@ class TestPredictOdds:
     def test_no_odds_no_market(self):
         d = main.predict(home="Team A", away="Team B", league="EPL")
         assert d["market"] is None
+
+    def test_derivative_markets_are_exposed(self):
+        # The /api/predict payload now carries Over/Under + Asian Handicap lines
+        # priced off the Dixon-Coles score matrix (Section C.8).
+        d = main.predict(home="Team A", away="Team B", league="EPL")
+        dm = d["derivative_markets"]
+        assert set(dm) == {"over_under", "asian_handicap"}
+        ou25 = next(x for x in dm["over_under"] if x["line"] == 2.5)
+        assert ou25["over"] + ou25["under"] == pytest.approx(1.0, abs=1e-6)
+        ah0 = next(x for x in dm["asian_handicap"] if x["handicap"] == 0.0)
+        assert ah0["home"] + ah0["push"] + ah0["away"] == pytest.approx(1.0, abs=1e-3)
 
     def test_partial_odds_ignored(self):
         # All three odds must be present & >= 1 to activate the layer.

@@ -26,6 +26,50 @@ ONE_LINE_LALIGA = """Spanish La Liga
 3 Athletic Club 4 2 0 2 6 5 +1 6
 """
 
+VERTICAL_SERIEA = """Serie A
+1
+Roma
+Giocate: 3
+Vittorie: 3
+Pareggi: 0
+Sconfitte: 0
+Gol fatti: 7
+Gol subiti: 2
+Differenza reti: +5
+Punti: 9
+2
+Inter
+Giocate: 3
+Vittorie: 2
+Pareggi: 1
+Sconfitte: 0
+Gol fatti: 6
+Gol subiti: 3
+Differenza reti: +3
+Punti: 7
+"""
+
+VERTICAL_ENGLISH = """Serie A table
+1) Roma
+Played: 3
+Won: 3
+Drawn: 0
+Lost: 0
+Goals For: 7
+Goals Against: 2
+Goal Difference: +5
+Points: 9
+2) AC Milan
+Played: 3
+Won: 2
+Drawn: 1
+Lost: 0
+Goals For: 5
+Goals Against: 3
+Goal Difference: +2
+Points: 7
+"""
+
 
 class TestImportStandings:
     def test_parse_split_layout_epl(self):
@@ -58,6 +102,51 @@ class TestImportStandings:
 
     def test_season_for_date(self):
         assert imp.season_for_date(date(2026, 9, 6)) == "2026-27"
+
+    def test_parse_vertical_italian_layout(self):
+        # Official-Serie-A-style vertical cards: position + name lines followed
+        # by labelled stat lines (Italian), clubs stacked without blank lines.
+        rows = imp.parse_table(VERTICAL_SERIEA, "SERIEA")
+        assert [r["team"] for r in rows] == ["Roma", "Inter"]
+        assert rows[0] == {
+            "position": 1,
+            "team": "Roma",
+            "played": 3,
+            "won": 3,
+            "draw": 0,
+            "lost": 0,
+            "gf": 7,
+            "ga": 2,
+            "goal_diff": 5,
+            "points": 9,
+        }
+        assert rows[1]["team"] == "Inter" and rows[1]["points"] == 7
+
+    def test_parse_vertical_english_layout_with_pos_name(self):
+        # English labels with position + team on one line ("1) Roma").
+        rows = imp.parse_table(VERTICAL_ENGLISH, "SERIEA")
+        assert [r["team"] for r in rows] == ["Roma", "Milan"]  # AC Milan -> Milan
+        assert rows[0]["goal_diff"] == 5
+        assert rows[1]["won"] == 2 and rows[1]["draw"] == 1
+
+    def test_vertical_labels_in_any_order(self):
+        # Labels can arrive out of the P/W/D/L order — values bind to their
+        # label, not their position in the block.
+        text = """Serie A
+1
+Napoli
+Punti: 9
+Gol subiti: 2
+Vittorie: 3
+Giocate: 3
+Gol fatti: 7
+Pareggi: 0
+Sconfitte: 0
+"""
+        rows = imp.parse_table(text, "SERIEA")
+        assert rows[0]["team"] == "Napoli"
+        assert rows[0]["points"] == 9 and rows[0]["gf"] == 7
+        assert rows[0]["goal_diff"] == 5
         assert imp.season_for_date(date(2027, 5, 1)) == "2026-27"
         assert imp.season_for_date(date(2026, 1, 15)) == "2025-26"
 

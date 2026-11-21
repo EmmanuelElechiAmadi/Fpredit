@@ -37,9 +37,19 @@ model:
   ss_prior_var: 0.25        # Initial state variance on team strength
   ss_obs_var_scale_xg: 0.5  # Measurement-noise scale when observing xG (goals use 1.0)
 
-  # Meta-learner (logistic regression)
+  # Meta-learner (multinomial logistic regression by default)
   meta_max_iter: 2000
   meta_C: 0.5               # Inverse regularization strength (calibrated from 1.0)
+
+  # Meta-learner family (Section C.9):
+  #   meta_learner: logistic | gbm   (gbm = histogram gradient-boosted tree)
+  #   meta_calibration: null | sigmoid (Platt) | isotonic  — wrap the base
+  #   meta-learner so its probabilities are calibrated. Compare variants
+  #   honestly with: python3 scripts/compare_meta_learners.py
+  meta_learner: logistic
+  meta_calibration: null
+  meta_gbm_max_iter: 200
+  meta_gbm_learning_rate: 0.05
 
   # Market-residual meta-model: when odds columns are present, the closing
   # implied probabilities (and opening->closing line movement, if available)

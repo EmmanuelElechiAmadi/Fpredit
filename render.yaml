@@ -8,3 +8,21 @@ services:
     envVars:
       - key: PORT
         value: 10000
+
+  # Weekly data refresh (results + odds, standings, fixtures).
+  # Render runs this Docker image on schedule with CRON_REFRESH=1 so the
+  # entrypoint runs scripts/refresh_data.py and exits instead of serving.
+  # Add FOOTBALL_DATA_ORG_API_KEY in the dashboard for automatic standings +
+  # fixtures; without it the run still refreshes the results CSVs and prints
+  # paste instructions for the tables.
+  - type: cron
+    name: football-predictor-weekly-refresh
+    runtime: docker
+    plan: free
+    schedule: "0 3 * * 1"
+    envVars:
+      - key: CRON_REFRESH
+        value: "1"
+      - key: FOOTBALL_DATA_ORG_API_KEY
+        sync: false
+

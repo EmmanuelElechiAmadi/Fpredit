@@ -11,7 +11,7 @@ snapshots for a league's current season over the table it computes from the
     cat /tmp/epl.txt | python3 scripts/import_standings.py
 
 The league is auto-detected from the table's title ("Premier League",
-"Spanish La Liga", "Serie A"). Two row layouts are accepted:
+"Spanish La Liga", "Serie A"). Three row layouts are accepted:
 
 1. One row per line::
 
@@ -23,6 +23,25 @@ The league is auto-detected from the table's title ("Premier League",
        1
        Manchester City
        3  3  0  0  7  2  +5  9
+
+3. The *vertical* labelled layout (common on the official Serie A / mobile
+   sites): each club is a small block with its position, name, and stats on
+   their own lines, stats written as ``Label: value`` in Italian or English::
+
+       1
+       Roma
+       Giocate: 3
+       Vittorie: 3
+       Pareggi: 0
+       Sconfitte: 0
+       Gol fatti: 7
+       Gol subiti: 2
+       Differenza reti: +5
+       Punti: 9
+
+   Labels may be English ("Played", "Won", "Drawn", ...) or Italian
+   ("Giocate", "Vittorie", "Pareggi", ...), in any order; position/team lines
+   can also be combined ("1 Roma").
 
 Team names are mapped to football-data.co.uk spellings (e.g. "Manchester
 City" -> "Man City", "Athletic Club" -> "Ath Bilbao") so the standings join
@@ -194,6 +213,132 @@ def _canonical_name(league: str, display: str) -> str:
     return key  # already canonical (or unknown — kept as-is)
 
 
+# Stat labels in the "vertical" layout, English + Italian. Keys are the
+# canonical row fields; each maps to the label words that may prefix a value
+# (labels are matched longest-first so "goals against" beats "goals").
+_STAT_LABELS: dict[str, list[str]] = {
+    "position": ["posizione", "position", "pos"],
+    "played": ["partite giocate", "giocate", "partite", "played"],
+    "won": ["vittorie", "vinte", "vittoria", "won", "wins"],
+    "draw": ["pareggi", "pareggiate", "pareggio", "draws", "drawn"],
+    "lost": ["sconfitte", "perse", "sconfitta", "losses", "lost"],
+    "gf": ["gol fatti", "reti fatte", "goals for", "goals scored"],
+    "ga": ["gol subiti", "reti subite", "goals against", "goals conceded"],
+    "gd": ["differenza reti", "differenza goal", "goal difference", "goal diff"],
+    "points": ["punti", "punti totali", "pts", "points"],
+}
+# Synonym -> canonical field, built once (longest synonym first).
+_LABEL_TO_FIELD: dict[str, str] = {}
+for _field, _syns in _STAT_LABELS.items():
+    for _syn in _syns:
+        _LABEL_TO_FIELD.setdefault(_syn.casefold(), _field)
+_LABEL_RE = re.compile(
+    r"(?<![A-Za-zÀ-ÿ])(?:"
+    + "|".join(
+        f"({re.escape(s)})" for s in sorted(_LABEL_TO_FIELD, key=len, reverse=True)
+    )
+    + r")\s*[:=]?\s*([+-]?\d+)",
+    re.IGNORECASE,
+)
+# A lone position number at the start of a club's block ("1", "1.", "1)").
+_POS_LINE = re.compile(r"^\s*(\d{1,2})\s*[.)]?\s*$")
+# A position + name on one line ("1 Roma", "1) Roma").
+_POS_NAME_LINE = re.compile(r"^\s*(\d{1,2})\s*[.)]?\s+(.+?)\s*$")
+_NAME_LINE = re.compile(r"^[^\d]*[A-Za-zÀ-ÿ][^\d]*$")
+
+
+def _label_pairs(line: str) -> dict[str, int]:
+    """All ``Label: value`` pairs on a line, keyed by canonical stat field."""
+    pairs: dict[str, int] = {}
+    for m in _LABEL_RE.finditer(line):
+        syn = next((g for g in m.groups() if g), "")
+        num_index = m.lastindex if m.lastindex is not None else len(m.groups())
+        pairs[_LABEL_TO_FIELD[syn.casefold()]] = int(m.group(num_index))
+    return pairs
+
+
+def _parse_vertical(text: str, league: str) -> Optional[list[dict]]:
+    """Parse the vertical labelled standings layout (Serie A / mobile sites).
+
+    Each club is a small block: a position number and a name line, followed by
+    ``Label: value`` stat lines (Italian or English, any order). Position/team
+    may share a line ("1 Roma"). Returns ``None`` when ``text`` does not look
+    like this layout (so the other parsers get a chance).
+    """
+    lines = [" ".join(ln.split()) for ln in text.splitlines()]
+    lines = [ln for ln in lines if ln]
+
+    pair_count = sum(len(_label_pairs(ln)) for ln in lines)
+    if pair_count < 4:  # not enough labelled stats -> not the vertical layout
+        return None
+
+    rows: list[dict] = []
+    pos: Optional[int] = None
+    name: Optional[str] = None
+    stats: dict[str, int] = {}
+
+    _REQUIRED_STATS = {"played", "won", "draw", "lost", "gf", "ga", "points"}
+
+    def flush() -> None:
+        """Close the current club block once it has a name + core stats."""
+        nonlocal pos, name, stats
+        if name and _REQUIRED_STATS.issubset(stats):
+            rows.append(
+                {
+                    "position": pos if pos is not None else len(rows) + 1,
+                    "team": _canonical_name(league, name),
+                    "played": stats["played"],
+                    "won": stats["won"],
+                    "draw": stats["draw"],
+                    "lost": stats["lost"],
+                    "gf": stats["gf"],
+                    "ga": stats["ga"],
+                    "goal_diff": stats.get("gd", stats["gf"] - stats["ga"]),
+                    "points": stats["points"],
+                }
+            )
+        pos = None
+        name = None
+        stats = {}
+
+    for line in lines:
+        pairs = _label_pairs(line)
+        if pairs:
+            stats.update(pairs)
+            continue
+        m_pos_name = _POS_NAME_LINE.match(line)
+        if m_pos_name:
+            flush()
+            pos = int(m_pos_name.group(1))
+            name = m_pos_name.group(2).strip()
+            continue
+        m_pos = _POS_LINE.match(line)
+        if m_pos:
+            # A fresh position number always starts a new club block.
+            flush()
+            pos = int(m_pos.group(1))
+            continue
+        if _NAME_LINE.match(line):
+            if name is None and pos is not None:
+                name = line
+            elif name is not None and stats and _REQUIRED_STATS.issubset(stats):
+                # Previous block is complete and a bare name line follows ->
+                # new club without an explicit position.
+                flush()
+                name = line
+            elif name is None and pos is None and not stats and not rows:
+                pass  # header/title line above the first club
+    flush()
+
+    if not rows:
+        raise ValueError(
+            "Detected a labelled/vertical table but could not parse any clubs — "
+            "expected position + team lines followed by 'Label: value' stat "
+            "lines (e.g. 'Giocate: 3', 'Punti: 9')."
+        )
+    return rows
+
+
 def parse_table(text: str, league: str) -> list[dict]:
     """Parse the pasted league table into standings rows (in table order).
 
@@ -202,6 +347,10 @@ def parse_table(text: str, league: str) -> list[dict]:
     """
     lines = [" ".join(ln.split()) for ln in text.splitlines()]
     lines = [ln for ln in lines if ln]
+
+    vertical = _parse_vertical(text, league)
+    if vertical is not None:
+        return vertical
 
     rows: list[dict] = []
     i = 0

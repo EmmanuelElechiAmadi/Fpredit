@@ -20,9 +20,13 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from pathlib import Path
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
+from .context_features import join_context
 from .dixon_coles import DixonColes
 from .elo import EloEngine
 from .features import (
@@ -46,6 +50,10 @@ class FootballEnsemble:
         dc_kwargs=None,
         meta_max_iter: int = 2000,
         meta_C: float = 1.0,
+        meta_learner: str = "logistic",
+        meta_calibration: str | None = None,
+        meta_gbm_max_iter: int = 200,
+        meta_gbm_learning_rate: float = 0.05,
         ss_q: float = 0.01,
         ss_q_xg: float = 0.005,
         ss_prior_var: float = 0.25,
@@ -56,6 +64,7 @@ class FootballEnsemble:
         congestion_days: int = 8,
         load_days: int = 14,
         position_reset_days: int = 100,
+        context_dir: str | Path | None = None,
     ):
         self._elo_kwargs = dict(elo_kwargs or {})
         self._dc_kwargs = dict(dc_kwargs or {})
@@ -73,14 +82,45 @@ class FootballEnsemble:
         self.load_days = load_days
         self.position_reset_days = position_reset_days
 
+        self.meta_max_iter = meta_max_iter
+        self.meta_C = meta_C
+        self.meta_learner = meta_learner
+        self.meta_calibration = meta_calibration
+        self.meta_gbm_max_iter = meta_gbm_max_iter
+        self.meta_gbm_learning_rate = meta_gbm_learning_rate
+        self.context_dir = context_dir
+
         self.scaler = StandardScaler()
-        self.meta = LogisticRegression(max_iter=meta_max_iter, C=meta_C)
+        self.meta = self._make_meta()
 
         self.dyn = StateSpaceModel(q=ss_q, prior_var=ss_prior_var)
         self.dyn_xg: StateSpaceModel | None = None
         self.has_xg = False
         self.feature_cols: list[str] = []
+        self._context_cols: list[str] = []
         self.train_df: pd.DataFrame | None = None
+
+    def _make_meta(self):
+        """Build the meta-learner estimator.
+
+        Item C.9: ``meta_learner`` is the base classifier — ``logistic`` (the
+        original, L2-regularised multinomial regression) or ``gbm`` (a
+        histogram gradient-boosted tree). ``meta_calibration`` optionally wraps
+        it in Platt scaling (``sigmoid``) or ``isotonic`` regression via
+        internal 3-fold cross-fitting, so the probabilities are well-calibrated
+        even when the base learner's raw output is not.
+        """
+        if self.meta_learner == "gbm":
+            base = HistGradientBoostingClassifier(
+                max_iter=self.meta_gbm_max_iter,
+                learning_rate=self.meta_gbm_learning_rate,
+                random_state=0,
+            )
+        else:
+            base = LogisticRegression(max_iter=self.meta_max_iter, C=self.meta_C)
+        if self.meta_calibration in ("sigmoid", "isotonic"):
+            return CalibratedClassifierCV(base, method=self.meta_calibration, cv=3)
+        return base
 
     def _base_feature_cols(self) -> list[str]:
         return [
@@ -202,16 +242,26 @@ class FootballEnsemble:
         df: pd.DataFrame,
         xg_df: pd.DataFrame | None = None,
         dc_warm_start: dict | None = None,
+        league: str | None = None,
     ):
         """df must be sorted ascending by date with columns:
         date, home_team, away_team, home_goals, away_goals, result (H/D/A).
 
         xg_df: optional Understat-style frame with date, home_team, away_team,
         home_xg, away_xg — when provided, xG features are added automatically.
+
+        league + self.context_dir: when data/context/<LEAGUE>/ season files
+        exist (injuries, manager, UEFA load, weather, ...), the whitelisted
+        per-match columns are joined on and become meta features automatically.
         """
         df = df.sort_values("date").reset_index(drop=True)
         if xg_df is not None and not xg_df.empty:
             df = join_xg(df, xg_df)
+        self._context_cols = []
+        if self.context_dir is not None:
+            df, joined_cols = join_context(df, self.context_dir, league=league)
+            # Only columns that actually carry data for some matches activate.
+            self._context_cols = [c for c in joined_cols if df[c].notna().any()]
         self.train_df = df
         matches = df.to_dict("records")
         self.has_xg = "home_xg" in df.columns and df["home_xg"].notna().any()
@@ -262,8 +312,18 @@ class FootballEnsemble:
                     "line_mv_abs",
                 ]
 
+        # Optional per-match context features (injuries, managers, UEFA load,
+        # weather, ...) activate only when their data files exist.
+        if self._context_cols:
+            self.feature_cols += [c for c in self._context_cols]
+
         feat_df = self._build_feature_frame(df, fit_elo=True)
-        feat_df = feat_df.dropna(subset=self.feature_cols)
+        # Context columns are neutral (0) when a match has no file row, so they
+        # must not cause whole rows to be dropped for missing coverage.
+        hard_cols = [c for c in self.feature_cols if c not in self._context_cols]
+        feat_df = feat_df.dropna(subset=hard_cols)
+        if self._context_cols:
+            feat_df[self._context_cols] = feat_df[self._context_cols].fillna(0.0)
         if len(feat_df) < 30:
             raise ValueError(
                 f"Too few rows with complete features ({len(feat_df)}) to fit the meta-learner"
@@ -411,6 +471,11 @@ class FootballEnsemble:
                 "line_mv_away": 0.0,
                 "line_mv_abs": 0.0,
             }
+            # Context features are neutral (0) for rows without a context-file
+            # row — live/upcoming fixtures legitimately have no file entry.
+            for c in self._context_cols:
+                raw = row.get(c, np.nan)
+                values[c] = 0.0 if pd.isna(raw) else float(raw)
             x = pd.DataFrame([{c: values[c] for c in self.feature_cols}]).fillna(0.0)
             proba = self.meta.predict_proba(self.scaler.transform(x))[0]
             classes = list(self.meta.classes_)

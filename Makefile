@@ -1,4 +1,4 @@
-.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data scrape-xg scrape-xg-all calibrate-elo calibrate-model calibrate-model-write market-control power-analysis holdout-test demo predict predict-xg backtest backtest-xg backtest-save report web
+.PHONY: install install-dev editable test test-quick test-slow test-coverage clean clean-all lint format format-check typecheck download-data refresh refresh-api scrape-xg scrape-xg-all calibrate-elo calibrate-model calibrate-model-write market-control power-analysis holdout-test demo predict predict-xg backtest backtest-xg backtest-save report web
 
 # ── Installation ──────────────────────────────────────────────────────────────
 
@@ -46,6 +46,12 @@ typecheck:
 
 download-data:
 	python3 scripts/download_data.py --all --seasons 5
+
+refresh:
+	python3 scripts/refresh_data.py --seasons 1
+
+refresh-api:
+	python3 scripts/fetch_football_data_org.py --action all
 
 scrape-xg:
 	python3 scripts/scrape_understat.py --league EPL --seasons 5

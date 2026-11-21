@@ -70,6 +70,43 @@ python backtest.py --league EPL --xg-dir data/xg                 # xG features e
 python predict.py "Arsenal" "Chelsea" --xg-dir data/xg
 ```
 
+### One-command weekly refresh (keep the data current)
+
+The app is only as current as the CSVs you paste. `scripts/refresh_data.py` is
+the weekly update that does the whole loop in one command:
+
+```bash
+python3 scripts/refresh_data.py --seasons 1
+# downloads the latest results + odds for the current season (the in-progress
+# season file is re-downloaded and overwritten — see scripts/download_data.py
+# --refresh), prunes data/fixtures rows that have already been played, and then
+# prints what to do about the standings table.
+```
+
+Standings need one of two inputs (the free CSV download has results but no
+league table):
+
+```bash
+# A) paste the tables (auto-detects league; EPL / La Liga / Serie A layouts):
+python3 scripts/refresh_data.py --standings-table /tmp/epl.txt \
+                                --standings-table /tmp/seriea.txt
+# B) or make it fully automatic with a free football-data.org token:
+FOOTBALL_DATA_ORG_API_KEY=xxxx python3 scripts/refresh_data.py
+```
+
+Optional heavy validation/retraining: `--backtest` runs the walk-forward
+backtest per league, `--retrain` eagerly refits the web model pickles. Add
+`--strict` to exit non-zero when a download fails (used by scheduled jobs).
+
+**Scheduling** — the same entry point runs unattended:
+
+- **GitHub Actions**: `.github/workflows/weekly-refresh.yml` runs it every
+  Monday and commits `data/` back to `master` when anything changed.
+- **Render**: `render.yaml` defines a `cron` job (the container entrypoint runs
+  `scripts/refresh_data.py` when `CRON_REFRESH=1` is set).
+- **Railway**: add a *Cron Job* service that runs the same image with
+  `CRON_REFRESH=1` (or the command below) — see `docs/DEPLOY.md`.
+
 ## New-season fixtures (who's playing next)
 
 Before the season starts there is nothing to predict yet, so the web UI has a
@@ -337,6 +374,33 @@ The importer auto-detects the league from the table title ("Premier League",
 "Spanish La Liga", "Serie A"), accepts the copy-pasted website layout (each
 row split across lines) or one row per line, and maps display names onto the
 football-data spellings the rest of the project uses.
+
+## Derivative markets, meta-learner variants & gated context features
+
+- **Over/Under + Asian Handicap pricing** (`src/market_lines.py`) — the
+  Dixon-Coles score matrix already exists, so `/api/predict` now also returns
+  `derivative_markets`: fair Over/Under totals at every half line (0.5…6.5)
+  and Asian Handicaps on the home team at quarter-ball precision (quarter
+  lines split 50/50 across the two adjacent lines, with the push share
+  reported). Run `python -m pytest tests/test_market_lines.py` for the maths.
+- **Meta-learner variants** (Section C.9) — the stack's meta-learner is now
+  configurable in `config.yaml`: `meta_learner: logistic | gbm` (histogram
+  gradient-boosted tree) and `meta_calibration: null | sigmoid | isotonic`
+  (Platt/isotonic wrapping). Compare them honestly on identical walk-forward
+  windows with `python3 scripts/compare_meta_learners.py`.
+- **Gated context features** (`src/context_features.py`) — injuries, manager
+  tenure/change, UEFA midweek load, weather, referee tendencies, attendance
+  and division-below priors are all data-blocked in the free pipeline. When
+  you supply per-match CSVs in `data/context/<LEAGUE>/<season>.csv` whose
+  columns are on the module's leak-safe whitelist (e.g. `injuries_home`,
+  `new_manager_away`, `uefa_rest_days_home`, `temp_c`, `rain_mm`,
+  `promoted_prior_rating_home`, …), they are joined onto matches and the
+  ensemble picks them up automatically; without the files nothing changes.
+  Realised in-match statistics are deliberately refused (a pasted npxG or
+  result column can never leak into the meta-learner). Line-movement features
+  (`PH/PD/PA` Pinnacle opening odds) remain dormant the same way — supply an
+  odds feed that carries those columns and `add_market_features` activates
+  them.
 
 ## Known limitations / future work
 
